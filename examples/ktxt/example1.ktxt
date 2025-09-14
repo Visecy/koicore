@@ -1,0 +1,13 @@
+#file "hello.txt" encoding("utf-8")
+Hello world!
+And there are all my friends.
+
+#space hello
+
+    #file "Bob.txt"
+    Hello Bob.
+
+    #file "Alice.txt"
+    Hello Alice.
+
+#endspace

@@ -1,0 +1,14 @@
+[package]
+name = "koicore"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+unescaper = "0.1"
+regex = "1.0"
+nom = "8.0"
+
+[workspace]
+members = [
+    "koicore_ffi",
+]

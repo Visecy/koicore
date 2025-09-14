@@ -1,0 +1,141 @@
+//! KoiLang parser module
+//! 
+//! This module provides the core parsing functionality for KoiLang files.
+//! It supports streaming processing and handles three types of content:
+//! - Commands (lines starting with # characters)
+//! - Text (regular content lines)
+//! - Annotations (lines with more # characters than the threshold)
+
+pub mod command;
+pub mod error;
+pub mod input;
+mod command_parser;
+
+pub use command::{Command, Parameter, Value};
+pub use error::{ParseError, ParseResult};
+pub use input::{TextInputSource, FileInputSource, StringInputSource};
+
+use input::Input;
+
+/// Configuration for the line processor
+#[repr(C)]
+pub struct ParserConfig {
+    /// The command threshold (number of # required for commands)
+    pub command_threshold: usize,
+}
+
+impl Default for ParserConfig {
+    fn default() -> Self {
+        Self {
+            command_threshold: 1,
+        }
+    }
+}
+
+/// Core KoiLang parser
+/// 
+/// The parser processes input line by line and produces `ParsedCommand` structures
+/// for each logical unit (commands, text lines, annotations).
+pub struct Parser<T: TextInputSource> {
+    input: Input<T>,
+    config: ParserConfig,
+}
+
+impl<T: TextInputSource> Parser<T> {
+    /// Create a new parser with the specified threshold
+    /// 
+    /// # Arguments
+    /// * `input_source` - The source of text input
+    /// * `threshold` - Number of # characters required to identify a command line
+    pub fn new(input_source: T, config: ParserConfig) -> Self {
+        Self {
+            input: Input::new(input_source),
+            config: config,
+        }
+    }
+
+    /// Get the next command from the input stream
+    /// 
+    /// Returns `None` when end of input is reached.
+    /// Returns `Some(Err(...))` when a parsing error occurs.
+    pub fn next_command(&mut self) -> Option<ParseResult<Command>> {
+        let (mut line_number, mut line) = self.input.next_line()?;
+        let mut trimmed = line.trim();
+        while trimmed.is_empty() {
+            (line_number, line) = self.input.next_line()?;
+            trimmed = line.trim();
+        }
+        
+        // Count leading # characters
+        let hash_count = line.chars().take_while(|&c| c == '#').count();
+        if hash_count < self.config.command_threshold {
+            Some(ParseResult::Ok(Command::new_text(trimmed.to_string())))
+        } else if hash_count > self.config.command_threshold{
+            Some(ParseResult::Ok(Command::new_annotation(trimmed.to_string())))
+        } else {
+            self.parse_command_line(trimmed.trim_start_matches('#').to_string(), line_number)
+        }
+    }
+
+    /// Parse a command line
+    pub fn parse_command_line(&self, command_text: String, line_number: usize) -> Option<ParseResult<Command>> {
+        if command_text.is_empty() {
+            return Some(Err(ParseError::syntax("Empty command line".to_string(), line_number, 0)));
+        }
+    
+        let result = command_parser::parse_command_line(&command_text);
+            
+        match result {
+            Ok(("", command)) => {
+                Some(Ok(command))
+            }
+            Ok((remaining, _)) => {
+                Some(Err(ParseError::syntax(
+                    format!("Unexpected input: '{}'", remaining),
+                    line_number,
+                    0,
+                )))
+            }
+            Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => {
+                Some(Err(ParseError::syntax(
+                    format!("Failed to parse command: '{}'", command_text),
+                    line_number,
+                    0,
+                )))
+            }
+            Err(nom::Err::Incomplete(_)) => {
+                Some(Err(ParseError::unexpected_eof(command_text, line_number)))
+            }
+        }
+    }
+
+    /// Process all commands using a callback function
+    /// 
+    /// This provides a streaming interface where each parsed command is
+    /// passed to the provided handler function.
+    /// 
+    /// # Arguments
+    /// * `handler` - Function to call for each parsed command
+    /// 
+    /// # Returns
+    /// * `Ok(())` if all commands were processed successfully
+    /// * `Err(E)` if the handler returned an error
+    pub fn process_with<F, E>(&mut self, mut handler: F) -> Result<(), E>
+    where
+        F: FnMut(Command) -> Result<(), E>,
+        E: From<ParseError>,
+    {
+        while let Some(result) = self.next_command() {
+            match result {
+                Ok(command) => handler(command)?,
+                Err(e) => return Err(e.into()), // Convert ParseError to E
+            }
+        }
+        Ok(())
+    }
+
+    /// Get the current line number
+    pub fn current_line(&self) -> usize {
+        self.input.line_number
+    }
+}
