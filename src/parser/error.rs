@@ -3,12 +3,13 @@
 //! This module defines the error types used throughout the parsing process.
 
 use std::fmt;
+use std::io;
 
 /// Result type for parsing operations
 pub type ParseResult<T> = Result<T, ParseError>;
 
 /// Error types that can occur during KoiLang parsing
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub enum ParseError {
     /// Syntax error in the input
     SyntaxError {
@@ -30,8 +31,8 @@ pub enum ParseError {
     
     /// IO error (for file-based parsing)
     IoError {
-        /// Error message
-        message: String,
+        /// The underlying IO error
+        error: io::Error,
     },
 }
 
@@ -46,9 +47,9 @@ impl ParseError {
         ParseError::UnexpectedEof { expected, line }
     }
 
-    /// Create a new IO error
-    pub fn io(message: String) -> Self {
-        ParseError::IoError { message }
+    /// Create a new IO error from an io::Error
+    pub fn io(error: io::Error) -> Self {
+        ParseError::IoError { error }
     }
 
     /// Get the line number associated with this error, if any
@@ -70,8 +71,8 @@ impl fmt::Display for ParseError {
             ParseError::UnexpectedEof { expected, line } => {
                 write!(f, "Unexpected end of input at line {}, expected {}", line, expected)
             }
-            ParseError::IoError { message } => {
-                write!(f, "IO error: {}", message)
+            ParseError::IoError { error } => {
+                write!(f, "IO error: {}", error)
             }
         }
     }

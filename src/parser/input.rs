@@ -4,8 +4,21 @@
 //! file-based, string-based, and streaming input.
 
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead};
 use std::path::Path;
+use encoding_rs::Encoding;
+use super::decode_buf_reader::DecodeBufReader;
+
+/// Encoding error handling strategy
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EncodingErrorStrategy {
+    /// Strict mode: return an error when encoding conversion fails
+    Strict,
+    /// Replace mode: replace invalid characters with replacement characters
+    Replace,
+    /// Ignore mode: skip invalid characters during conversion
+    Ignore,
+}
 
 /// Trait for text input sources
 /// 
@@ -14,17 +27,19 @@ use std::path::Path;
 pub trait TextInputSource {
     /// Get the next line from the input source
     /// 
-    /// Returns `Some(String)` if a line is available, `None` if end of input is reached.
-    fn next_line(&mut self) -> Option<String>;
+    /// Returns `Ok(Some(String))` if a line is available, `Ok(None)` if end of input is reached,
+    /// or `Err(io::Error)` if an I/O error occurs.
+    fn next_line(&mut self) -> io::Result<Option<String>>;
 }
 
-/// Input source that reads from a file
+/// Input source that reads from a file with encoding support
 pub struct FileInputSource {
-    reader: BufReader<File>,
+    reader: DecodeBufReader<File>,
+    encoding_strategy: EncodingErrorStrategy,
 }
 
 impl FileInputSource {
-    /// Create a new file input source
+    /// Create a new file input source with automatic encoding detection
     /// 
     /// # Arguments
     /// * `path` - Path to the file to read
@@ -33,21 +48,61 @@ impl FileInputSource {
     /// * `Ok(FileInputSource)` if the file was opened successfully
     /// * `Err(io::Error)` if there was an error opening the file
     pub fn new<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let file = File::open(path)?;
-        let reader = BufReader::new(file);
-        Ok(Self { reader })
+        Self::with_encoding(path, None, EncodingErrorStrategy::Replace)
     }
+
+    /// Create a new file input source with specified encoding
+    /// 
+    /// # Arguments
+    /// * `path` - Path to the file to read
+    /// * `encoding` - The encoding to use (None for auto-detection)
+    /// * `strategy` - Error handling strategy for encoding conversion
+    /// 
+    /// # Returns
+    /// * `Ok(FileInputSource)` if the file was opened successfully
+    /// * `Err(io::Error)` if there was an error opening the file
+    pub fn with_encoding<P: AsRef<Path>>(
+        path: P,
+        encoding: Option<&'static Encoding>,
+        strategy: EncodingErrorStrategy,
+    ) -> io::Result<Self> {
+        let file = File::open(path)?;
+        let reader = if let Some(enc) = encoding {
+            DecodeBufReader::with_encoding_and_strategy(file, enc, strategy)
+        } else {
+            DecodeBufReader::with_encoding_and_strategy(file, encoding_rs::UTF_8, strategy)
+        };
+        Ok(Self { reader, encoding_strategy: strategy })
+    }
+
 }
 
 impl TextInputSource for FileInputSource {
-    fn next_line(&mut self) -> Option<String> {
+    fn next_line(&mut self) -> io::Result<Option<String>> {
         let mut line = String::new();
         match self.reader.read_line(&mut line) {
-            Ok(0) => None, // EOF
+            Ok(0) => Ok(None), // EOF
             Ok(_) => {
-                Some(line.replace("\r\n", "\n"))
+                let has_err = line.contains("\u{FFFD}");
+                match self.encoding_strategy {
+                    EncodingErrorStrategy::Strict if has_err => {
+                        // In strict mode, we should return an error for encoding issues
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "Invalid encoding detected in strict mode"
+                        ));
+                    }
+                    EncodingErrorStrategy::Replace if has_err => {
+                        line = line.replace("\u{FFFD}", "?");
+                    }
+                    EncodingErrorStrategy::Ignore if has_err => {
+                        line = line.replace("\u{FFFD}", "");
+                    }
+                    _ => {}
+                };
+                Ok(Some(line.replace("\r\n", "\n")))
             }
-            Err(_) => None, // Error reading line
+            Err(e) => Err(e), // Propagate I/O errors
         }
     }
 }
@@ -71,35 +126,21 @@ impl StringInputSource {
 }
 
 impl TextInputSource for StringInputSource {
-    fn next_line(&mut self) -> Option<String> {
-        self.lines.next()
+    fn next_line(&mut self) -> io::Result<Option<String>> {
+        Ok(self.lines.next())
     }
 }
 
 /// Input source that reads from any type implementing `BufRead`
-pub struct StreamInputSource<R: BufRead> {
-    reader: R,
-}
-
-impl<R: BufRead> StreamInputSource<R> {
-    /// Create a new stream input source
-    /// 
-    /// # Arguments
-    /// * `reader` - Any type that implements `BufRead`
-    pub fn new(reader: R) -> Self {
-        Self { reader }
-    }
-}
-
-impl<R: BufRead> TextInputSource for StreamInputSource<R> {
-    fn next_line(&mut self) -> Option<String> {
+impl<R: BufRead> TextInputSource for R {
+    fn next_line(&mut self) -> io::Result<Option<String>> {
         let mut line = String::new();
-        match self.reader.read_line(&mut line) {
-            Ok(0) => None, // EOF
+        match self.read_line(&mut line) {
+            Ok(0) => Ok(None), // EOF
             Ok(_) => {
-                Some(line.replace("\r\n", "\n"))
+                Ok(Some(line.replace("\r\n", "\n")))
             }
-            Err(_) => None, // Error reading line
+            Err(e) => Err(e), // Propagate I/O errors
         }
     }
 }
@@ -117,15 +158,27 @@ impl<T: TextInputSource> Input<T> {
         }
     }
 
-    pub fn next_line(&mut self) -> Option<(usize, String)> {
+    pub fn next_line(&mut self) -> io::Result<Option<(usize, String)>> {
         let mut line_cache = String::new();
         loop {
             let line_number = self.line_number;
-            let line = self.source.next_line()?;
-            self.line_number += 1;
-            line_cache.push_str(&line);
-            if !line.ends_with("\\\n") {
-                break Some((line_number, line_cache));
+            match self.source.next_line() {
+                Ok(Some(line)) => {
+                    self.line_number += 1;
+                    line_cache.push_str(&line);
+                    if !line.ends_with("\\\n") {
+                        break Ok(Some((line_number, line_cache)));
+                    }
+                }
+                Ok(None) => {
+                    if line_cache.is_empty() {
+                        break Ok(None);
+                    } else {
+                        self.line_number += 1;
+                        break Ok(Some((line_number, line_cache)));
+                    }
+                }
+                Err(e) => return Err(e),
             }
         }
     }

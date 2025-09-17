@@ -6,20 +6,20 @@ use koicore::parser;
 fn test_parse_hello_world() {
     let input = parser::StringInputSource::new("#hello world\nThis is a text.");
     let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
-    let cmd = parser.next_command();
+    let cmd = parser.next_command().unwrap();
     assert_eq!(
         cmd,
-        Some(Ok(parser::Command::new(
+        Some(parser::Command::new(
             "hello".to_string(),
             vec![parser::Parameter::Basic(parser::Value::Literal(
                 "world".to_string()
             ))]
-        )))
+        ))
     );
-    let text = parser.next_command();
+    let text = parser.next_command().unwrap();
     assert_eq!(
         text,
-        Some(Ok(parser::Command::new_text("This is a text.".to_string())))
+        Some(parser::Command::new_text("This is a text.".to_string()))
     );
 }
 

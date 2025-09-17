@@ -9,6 +9,7 @@
 pub mod command;
 pub mod error;
 pub mod input;
+pub mod decode_buf_reader;
 mod command_parser;
 
 pub use command::{Command, Parameter, Value};
@@ -56,55 +57,64 @@ impl<T: TextInputSource> Parser<T> {
 
     /// Get the next command from the input stream
     /// 
-    /// Returns `None` when end of input is reached.
-    /// Returns `Some(Err(...))` when a parsing error occurs.
-    pub fn next_command(&mut self) -> Option<ParseResult<Command>> {
-        let (mut line_number, mut line) = self.input.next_line()?;
+    /// Returns `Ok(None)` when end of input is reached.
+    /// Returns `Ok(Some(Command))` when a command is successfully parsed.
+    /// Returns `Err(ParseError)` when a parsing error occurs.
+    pub fn next_command(&mut self) -> ParseResult<Option<Command>> {
+        let (mut line_number, mut line) = match self.input.next_line() {
+            Ok(Some(line_info)) => line_info,
+            Ok(None) => return Ok(None),
+            Err(e) => return Err(ParseError::io(e)),
+        };
         let mut trimmed = line.trim();
         while trimmed.is_empty() {
-            (line_number, line) = self.input.next_line()?;
+            (line_number, line) = match self.input.next_line() {
+                Ok(Some(line_info)) => line_info,
+                Ok(None) => return Ok(None),
+                Err(e) => return Err(ParseError::io(e)),
+            };
             trimmed = line.trim();
         }
         
         // Count leading # characters
         let hash_count = line.chars().take_while(|&c| c == '#').count();
         if hash_count < self.config.command_threshold {
-            Some(ParseResult::Ok(Command::new_text(trimmed.to_string())))
+            Ok(Some(Command::new_text(trimmed.to_string())))
         } else if hash_count > self.config.command_threshold{
-            Some(ParseResult::Ok(Command::new_annotation(trimmed.to_string())))
+            Ok(Some(Command::new_annotation(trimmed.to_string())))
         } else {
             self.parse_command_line(trimmed.trim_start_matches('#').to_string(), line_number)
         }
     }
 
     /// Parse a command line
-    pub fn parse_command_line(&self, command_text: String, line_number: usize) -> Option<ParseResult<Command>> {
+    pub fn parse_command_line(&self, command_text: String, line_number: usize) -> ParseResult<Option<Command>> {
         if command_text.is_empty() {
-            return Some(Err(ParseError::syntax("Empty command line".to_string(), line_number, 0)));
+            return Err(ParseError::syntax("Empty command line".to_string(), line_number, 0));
         }
     
         let result = command_parser::parse_command_line(&command_text);
             
         match result {
             Ok(("", command)) => {
-                Some(Ok(command))
+                Ok(Some(command))
             }
             Ok((remaining, _)) => {
-                Some(Err(ParseError::syntax(
+                Err(ParseError::syntax(
                     format!("Unexpected input: '{}'", remaining),
                     line_number,
                     0,
-                )))
+                ))
             }
             Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => {
-                Some(Err(ParseError::syntax(
+                Err(ParseError::syntax(
                     format!("Failed to parse command: '{}'", command_text),
                     line_number,
                     0,
-                )))
+                ))
             }
             Err(nom::Err::Incomplete(_)) => {
-                Some(Err(ParseError::unexpected_eof(command_text, line_number)))
+                Err(ParseError::unexpected_eof(command_text, line_number))
             }
         }
     }
@@ -125,9 +135,10 @@ impl<T: TextInputSource> Parser<T> {
         F: FnMut(Command) -> Result<(), E>,
         E: From<ParseError>,
     {
-        while let Some(result) = self.next_command() {
-            match result {
-                Ok(command) => handler(command)?,
+        loop {
+            match self.next_command() {
+                Ok(Some(command)) => handler(command)?,
+                Ok(None) => break, // End of input
                 Err(e) => return Err(e.into()), // Convert ParseError to E
             }
         }
