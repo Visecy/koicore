@@ -17,6 +17,7 @@ pub use error::{ParseError, ParseResult};
 pub use input::{TextInputSource, FileInputSource, StringInputSource};
 
 use input::Input;
+use nom_language::error::{VerboseError, VerboseErrorKind};
 
 /// Configuration for the line processor
 #[repr(C)]
@@ -90,7 +91,12 @@ impl<T: TextInputSource> Parser<T> {
     /// Parse a command line
     pub fn parse_command_line(&self, command_text: String, line_number: usize) -> ParseResult<Option<Command>> {
         if command_text.is_empty() {
-            return Err(ParseError::syntax("Empty command line".to_string(), line_number, 0));
+            return Err(ParseError::syntax_with_context(
+                "Empty command line".to_string(), 
+                line_number, 
+                command_text.find('#').unwrap_or(0),
+                command_text
+            ));
         }
     
         let result = command_parser::parse_command_line(&command_text);
@@ -100,17 +106,22 @@ impl<T: TextInputSource> Parser<T> {
                 Ok(Some(command))
             }
             Ok((remaining, _)) => {
-                Err(ParseError::syntax(
+                let column = command_text.len() - remaining.len();
+                Err(ParseError::syntax_with_context(
                     format!("Unexpected input: '{}'", remaining),
                     line_number,
-                    0,
+                    column,
+                    command_text
                 ))
             }
-            Err(nom::Err::Error(_)) | Err(nom::Err::Failure(_)) => {
-                Err(ParseError::syntax(
+            Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                // Create a simple nom error for compatibility
+                Err(ParseError::from_nom_error(
                     format!("Failed to parse command: '{}'", command_text),
                     line_number,
                     0,
+                    command_text.clone(),
+                    e.into()
                 ))
             }
             Err(nom::Err::Incomplete(_)) => {

@@ -1,6 +1,4 @@
-use encoding_rs::Encoding;
-use std::fs::File;
-use std::io::{self, BufReader, Cursor, Read};
+use encoding_rs;
 
 #[test]
 fn test_decode() {

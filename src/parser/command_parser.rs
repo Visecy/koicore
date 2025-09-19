@@ -8,21 +8,19 @@ use nom::{
     bytes::complete::{is_not, tag, take_while, take_while1, take_while_m_n},
     character::complete::{char, digit1, multispace1},
     combinator::{map, map_opt, map_res, opt, recognize, value, verify},
-    error::{ErrorKind, FromExternalError, ParseError},
+    error::{ErrorKind, ParseError},
     multi::{fold_many0, many0, separated_list0},
     sequence::{delimited, pair, preceded, separated_pair},
     IResult, Parser,
 };
+use nom_language::error::VerboseError;
 use std::str::FromStr;
 
 use super::command::{Command, Parameter, Value, CompositeValue};
 
 /// Parse a Python-style escaped character: \n, \t, \r, \x41, \u0041, etc.
 /// Also handles line continuation where \\\n should be ignored.
-fn parse_escaped_char<'a, E>(input: &'a str) -> IResult<&'a str, char, E>
-where
-    E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>,
-{
+fn parse_escaped_char<'a>(input: &'a str) -> IResult<&'a str, char, VerboseError<&'a str>> {
     preceded(
         char('\\'),
         alt((
@@ -93,7 +91,7 @@ where
 }
 
 /// Parse a non-empty block of text that doesn't include \ or "
-fn parse_string_literal<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
+fn parse_string_literal(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
     let not_quote_slash = is_not("\"\\");
     verify(not_quote_slash, |s: &str| !s.is_empty()).parse(input)
 }
@@ -108,7 +106,7 @@ enum StringFragment<'a> {
 }
 
 /// Parse line continuation: backslash followed by newline
-fn parse_line_continuation<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, (), E> {
+fn parse_line_continuation(input: &str) -> IResult<&str, (), VerboseError<&str>> {
     map(
         (char('\\'), char('\n')),
         |_| ()
@@ -116,10 +114,7 @@ fn parse_line_continuation<'a, E: ParseError<&'a str>>(input: &'a str) -> IResul
 }
 
 /// Combine parse_string_literal, parse_line_continuation, and parse_escaped_char into a StringFragment
-fn parse_string_fragment<'a, E>(input: &'a str) -> IResult<&'a str, StringFragment<'a>, E>
-where
-    E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>,
-{
+fn parse_string_fragment(input: &str) -> IResult<&str, StringFragment<'_>, VerboseError<&str>> {
     alt((
         map(parse_string_literal, StringFragment::Literal),
         map(parse_line_continuation, |_| StringFragment::LineContinuation),
@@ -129,7 +124,7 @@ where
 }
 
 /// Parse a quoted string
-fn parse_string(input: &str) -> IResult<&str, Value> {
+fn parse_string(input: &str) -> IResult<&str, Value, VerboseError<&str>> {
     let build_string = fold_many0(
         parse_string_fragment,
         String::new,
@@ -149,7 +144,7 @@ fn parse_string(input: &str) -> IResult<&str, Value> {
 }
 
 /// Parse a decimal integer
-fn parse_decimal_int(input: &str) -> IResult<&str, i64> {
+fn parse_decimal_int(input: &str) -> IResult<&str, i64, VerboseError<&str>> {
     map_res(
         recognize(pair(
             opt(char('-')),
@@ -160,7 +155,7 @@ fn parse_decimal_int(input: &str) -> IResult<&str, i64> {
 }
 
 /// Parse a hexadecimal integer (0x...)
-fn parse_hex_int(input: &str) -> IResult<&str, i64> {
+fn parse_hex_int(input: &str) -> IResult<&str, i64, VerboseError<&str>> {
     preceded(
         tag("0x"),
         map_res(
@@ -171,7 +166,7 @@ fn parse_hex_int(input: &str) -> IResult<&str, i64> {
 }
 
 /// Parse a binary integer (0b...)
-fn parse_bin_int(input: &str) -> IResult<&str, i64> {
+fn parse_bin_int(input: &str) -> IResult<&str, i64, VerboseError<&str>> {
     preceded(
         tag("0b"),
         map_res(
@@ -182,7 +177,7 @@ fn parse_bin_int(input: &str) -> IResult<&str, i64> {
 }
 
 /// Parse any integer type (decimal, hex, binary)
-fn parse_integer(input: &str) -> IResult<&str, Value> {
+fn parse_integer(input: &str) -> IResult<&str, Value, VerboseError<&str>> {
     alt((
         map(parse_hex_int, Value::Int),
         map(parse_bin_int, Value::Int),
@@ -191,7 +186,7 @@ fn parse_integer(input: &str) -> IResult<&str, Value> {
 }
 
 /// Parse a float number
-fn parse_float(input: &str) -> IResult<&str, Value> {
+fn parse_float(input: &str) -> IResult<&str, Value, VerboseError<&str>> {
     map_res(
         recognize(
             (opt(char('-')),
@@ -206,12 +201,12 @@ fn parse_float(input: &str) -> IResult<&str, Value> {
 }
 
 /// Helper for float parsing - digits or empty
-fn digit0(input: &str) -> IResult<&str, &str> {
+fn digit0(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
     take_while(|c: char| c.is_ascii_digit())(input)
 }
 
 /// Helper for float parsing - exponent part
-fn float_exp(input: &str) -> IResult<&str, &str> {
+fn float_exp(input: &str) -> IResult<&str, &str, VerboseError<&str>> {
     recognize((
         alt((char('e'), char('E'))),
         opt(alt((char('+'), char('-')))),
@@ -220,7 +215,7 @@ fn float_exp(input: &str) -> IResult<&str, &str> {
 }
 
 /// Parse a literal (valid identifier)
-fn parse_literal(input: &str) -> IResult<&str, Value> {
+fn parse_literal(input: &str) -> IResult<&str, Value, VerboseError<&str>> {
     map(
         recognize(
             pair(
@@ -233,7 +228,7 @@ fn parse_literal(input: &str) -> IResult<&str, Value> {
 }
 
 /// Parse any basic value type
-fn parse_basic_value(input: &str) -> IResult<&str, Value> {
+fn parse_basic_value(input: &str) -> IResult<&str, Value, VerboseError<&str>> {
     alt((
         parse_string,  // Try string first since it starts with a quote
         parse_float,
@@ -243,12 +238,12 @@ fn parse_basic_value(input: &str) -> IResult<&str, Value> {
 }
 
 /// Parse a single parameter value (not composite)
-fn parse_single_param(input: &str) -> IResult<&str, Parameter> {
+fn parse_single_param(input: &str) -> IResult<&str, Parameter, VerboseError<&str>> {
     map(parse_basic_value, Parameter::Basic).parse(input)
 }
 
 /// Parse a list of values in parentheses: (item1, item2, ...)
-fn parse_value_list(input: &str) -> IResult<&str, Vec<Value>> {
+fn parse_value_list(input: &str) -> IResult<&str, Vec<Value>, VerboseError<&str>> {
     delimited(
         char('('),
         separated_list0(preceded(parse_whitespace_with_continuation, char(',')), 
@@ -258,7 +253,7 @@ fn parse_value_list(input: &str) -> IResult<&str, Vec<Value>> {
 }
 
 /// Parse a dictionary in parentheses: (key1: value1, key2: value2, ...)
-fn parse_dict(input: &str) -> IResult<&str, Vec<(String, Value)>> {
+fn parse_dict(input: &str) -> IResult<&str, Vec<(String, Value)>, VerboseError<&str>> {
     delimited(
         char('('),
         separated_list0(
@@ -280,11 +275,11 @@ fn parse_dict(input: &str) -> IResult<&str, Vec<(String, Value)>> {
 }
 
 /// Parse composite parameters: key(value), key(item1, item2), key(x: 1, y: 2)
-fn parse_composite_param(input: &str) -> IResult<&str, Parameter> {
+fn parse_composite_param(input: &str) -> IResult<&str, Parameter, VerboseError<&str>> {
     let (input, key) = parse_literal(input)?;
     let key_str = match key {
         Value::Literal(s) => s,
-        _ => return Err(nom::Err::Error(nom::error::Error::new(input, ErrorKind::Tag))),
+        _ => return Err(nom::Err::Error(VerboseError::from_error_kind(input, ErrorKind::Tag))),
     };
     
     let (input, composite) = alt((
@@ -302,7 +297,7 @@ fn parse_composite_param(input: &str) -> IResult<&str, Parameter> {
 }
 
 /// Parse any parameter type (basic or composite)
-fn parse_parameter(input: &str) -> IResult<&str, Parameter> {
+fn parse_parameter(input: &str) -> IResult<&str, Parameter, VerboseError<&str>> {
     alt((
         parse_composite_param,
         parse_single_param,
@@ -310,7 +305,7 @@ fn parse_parameter(input: &str) -> IResult<&str, Parameter> {
 }
 
 /// Parse a command name (can be literal or number)
-fn parse_command_name(input: &str) -> IResult<&str, String> {
+fn parse_command_name(input: &str) -> IResult<&str, String, VerboseError<&str>> {
     alt((
         map(parse_literal, |v| match v {
             Value::Literal(s) => s,
@@ -333,7 +328,7 @@ fn parse_whitespace_with_continuation<'a, E: ParseError<&'a str>>(input: &'a str
 }
 
 /// Parse a complete command line: command_name [param1] [param2] ...
-pub fn parse_command_line(input: &str) -> IResult<&str, Command> {
+pub fn parse_command_line(input: &str) -> IResult<&str, Command, VerboseError<&str>> {
     ((
         parse_command_name,
         many0(preceded(parse_whitespace_with_continuation, parse_parameter)),
