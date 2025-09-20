@@ -9,7 +9,7 @@ use nom::{
     character::complete::{char, digit1, multispace1},
     combinator::{map, map_opt, map_res, opt, recognize, value, verify},
     error::{ErrorKind, ParseError},
-    multi::{fold_many0, many0, separated_list0},
+    multi::{fold_many0, many0, separated_list1},
     sequence::{delimited, pair, preceded, separated_pair},
     IResult, Parser,
 };
@@ -246,7 +246,7 @@ fn parse_single_param(input: &str) -> IResult<&str, Parameter, VerboseError<&str
 fn parse_value_list(input: &str) -> IResult<&str, Vec<Value>, VerboseError<&str>> {
     delimited(
         char('('),
-        separated_list0(preceded(parse_whitespace_with_continuation, char(',')), 
+        separated_list1(preceded(parse_whitespace_with_continuation, char(',')), 
                        preceded(parse_whitespace_with_continuation, parse_basic_value)),
         preceded(parse_whitespace_with_continuation, char(')'))
     ).parse(input)
@@ -256,7 +256,7 @@ fn parse_value_list(input: &str) -> IResult<&str, Vec<Value>, VerboseError<&str>
 fn parse_dict(input: &str) -> IResult<&str, Vec<(String, Value)>, VerboseError<&str>> {
     delimited(
         char('('),
-        separated_list0(
+        separated_list1(
             preceded(parse_whitespace_with_continuation, char(',')),
             preceded(
                 parse_whitespace_with_continuation,
@@ -382,8 +382,8 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(cmd.name(), "draw");
         assert_eq!(cmd.params().len(), 2);
-        assert_eq!(cmd.params()[0], Parameter::Basic(Value::Literal("Line".to_string())));
-        assert_eq!(cmd.params()[1], Parameter::Basic(Value::Int(2)));
+        assert_eq!(cmd.params()[0], Value::Literal("Line".to_string()).into());
+        assert_eq!(cmd.params()[1], Value::from(2 ).into());
     }
     
     #[test]
@@ -401,7 +401,7 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(cmd.name(), "say");
         assert_eq!(cmd.params().len(), 1);
-        assert_eq!(cmd.params()[0], Parameter::Basic(Value::String("Hello World".to_string())));
+        assert_eq!(cmd.params()[0], Parameter::from("Hello World"));
         
         // Test escape sequences
         let escape_result = parse_basic_value("\"Hello\\nWorld\"");
@@ -478,17 +478,17 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(cmd.name(), "draw");
         assert_eq!(cmd.params().len(), 5);
-        assert_eq!(cmd.params()[0], Parameter::Basic(Value::Literal("Line".to_string())));
-        assert_eq!(cmd.params()[1], Parameter::Basic(Value::Int(2)));
+        assert_eq!(cmd.params()[0], Value::Literal("Line".to_string()).into());
+        assert_eq!(cmd.params()[1], Value::from(2).into());
         assert_eq!(cmd.params()[2], Parameter::Composite("pos".to_string(), CompositeValue::Dict(
             vec![
-                ("x".to_string(), Value::Int(0)),
-                ("y".to_string(), Value::Int(0)),
+                ("x".to_string(), Value::from(0).into()),
+                ("y".to_string(), Value::from(0).into()),
             ]
         )));
-        assert_eq!(cmd.params()[3], Parameter::Composite("thickness".to_string(), CompositeValue::Single(Value::Int(2))));
+        assert_eq!(cmd.params()[3], Parameter::Composite("thickness".to_string(),Value::from(2).into()));
         assert_eq!(cmd.params()[4], Parameter::Composite("color".to_string(), CompositeValue::List(
-            vec![Value::Int(255), Value::Int(255), Value::Int(255)]
+            vec![Value::from(255).into(), Value::from(255).into(), Value::from(255).into()]
         )));
     }
     
@@ -529,8 +529,8 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(cmd.name(), "draw");
         assert_eq!(cmd.params().len(), 2);
-        assert_eq!(cmd.params()[0], Parameter::Basic(Value::Literal("Line".to_string())));
-        assert_eq!(cmd.params()[1], Parameter::Basic(Value::Int(2)));
+        assert_eq!(cmd.params()[0], Value::Literal("Line".to_string()).into());
+        assert_eq!(cmd.params()[1], Value::from(2).into());
     }
 
     #[test]

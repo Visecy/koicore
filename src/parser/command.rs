@@ -3,7 +3,7 @@
 //! This module defines the data structures used to represent parsed commands
 //! and their arguments in a unified format.
 
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -11,6 +11,12 @@ pub enum Value {
     Float(f64),
     Literal(String),
     String(String),
+}
+
+impl Value {
+    pub fn from_literal<T: Into<String>>(s: T) -> Self {
+        Self::Literal(s.into())
+    }
 }
 
 impl From<i64> for Value {
@@ -31,6 +37,12 @@ impl From<String> for Value {
     }
 }
 
+impl From<&'_ str> for Value {
+    fn from(s: &'_ str) -> Self {
+        Self::String(s.to_string())
+    }
+}
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -47,6 +59,30 @@ pub enum CompositeValue {
     Single(Value),
     List(Vec<Value>),
     Dict(Vec<(String, Value)>),
+}
+
+impl<T: Into<Value>> From<T> for CompositeValue {
+    fn from(v: T) -> Self {
+        Self::Single(v.into())
+    }
+}
+
+impl From<Vec<Value>> for CompositeValue {
+    fn from(v: Vec<Value>) -> Self {
+        Self::List(v)
+    }
+}
+
+impl From<Vec<(String, Value)>> for CompositeValue {
+    fn from(v: Vec<(String, Value)>) -> Self {
+        Self::Dict(v)
+    }
+}
+
+impl From<HashMap<String, Value>> for CompositeValue {
+    fn from(v: HashMap<String, Value>) -> Self {
+        Self::Dict(v.into_iter().collect())
+    }
 }
 
 impl fmt::Display for CompositeValue {
@@ -82,6 +118,18 @@ pub enum Parameter {
     Composite(String, CompositeValue),
 }
 
+impl<T: Into<Value>> From<T> for Parameter {
+    fn from(v: T) -> Self {
+        Self::Basic(v.into())
+    }
+}
+
+impl<K: Into<String>, V: Into<CompositeValue>> From<(K, V)> for Parameter {
+    fn from(v: (K, V)) -> Self {
+        Self::Composite(v.0.into(), v.1.into())
+    }
+}
+
 impl fmt::Display for Parameter {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -103,15 +151,15 @@ impl Command {
     }
 
     pub fn new_text(content: String) -> Self {
-        Self::new("@text".to_string(), vec![Parameter::Basic(Value::String(content))])
+        Self::new("@text".to_string(), vec![Parameter::from(content)])
     }
 
     pub fn new_annotation(content: String) -> Self {
-        Self::new("@annotation".to_string(), vec![Parameter::Basic(Value::String(content))])
+        Self::new("@annotation".to_string(), vec![Parameter::from(content)])
     }
 
     pub fn new_number(value: i64, args: Vec<Parameter>) -> Self {
-        let mut all_args = vec![Parameter::Basic(Value::Int(value))];
+        let mut all_args = vec![Parameter::from(value)];
         all_args.extend(args);
         Self::new("@number".to_string(), all_args)
     }
@@ -133,5 +181,36 @@ impl fmt::Display for Command {
             write!(f, "{}", param)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_command_display() {
+        let cmd = Command::new("hello".to_string(), vec![Parameter::Basic(Value::Literal("world".to_string()))]);
+        assert_eq!(format!("{}", cmd), "hello world");
+    }
+
+    #[test]
+    fn test_command_display_text() {
+        let cmd = Command::new_text("hello world".to_string());
+        assert_eq!(format!("{}", cmd), "@text \"hello world\"");
+    }
+
+    #[test]
+    fn test_command_display_annotation() {
+        let cmd = Command::new_annotation("hello world".to_string());
+        assert_eq!(format!("{}", cmd), "@annotation \"hello world\"");
+    }
+
+    #[test]
+    fn test_convert_value() {
+        let cv = Parameter::from(10);
+        assert_eq!(format!("{}", cv), "10");
+        let cv = Parameter::from(("a", 10));
+        assert_eq!(format!("{}", cv), "a(10)");
     }
 }

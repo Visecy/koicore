@@ -17,7 +17,6 @@ pub use error::{ParseError, ParseResult};
 pub use input::{TextInputSource, FileInputSource, StringInputSource};
 
 use input::Input;
-use nom_language::error::{VerboseError, VerboseErrorKind};
 
 /// Configuration for the line processor
 #[repr(C)]
@@ -78,7 +77,7 @@ impl<T: TextInputSource> Parser<T> {
         }
         
         // Count leading # characters
-        let hash_count = line.chars().take_while(|&c| c == '#').count();
+        let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
         if hash_count < self.config.command_threshold {
             Ok(Some(Command::new_text(trimmed.to_string())))
         } else if hash_count > self.config.command_threshold{
@@ -106,7 +105,7 @@ impl<T: TextInputSource> Parser<T> {
                 Ok(Some(command))
             }
             Ok((remaining, _)) => {
-                let column = command_text.len() - remaining.len();
+                let column = command_text.len() - remaining.len() + 1;
                 Err(ParseError::syntax_with_context(
                     format!("Unexpected input: '{}'", remaining),
                     line_number,

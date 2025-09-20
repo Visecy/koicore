@@ -33,3 +33,35 @@ fn test_parse_example() {
         Ok::<(), parser::ParseError>(())
     }).expect("Failed to process file");
 }
+
+#[test]
+fn test_parse_example_with_empty_line() {
+    let input = parser::StringInputSource::new(" #");
+    let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
+    let result = parser.next_command();
+    println!("{:?}", result);
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_parse_example_with_syntax_error() {
+    let text = "#error e() 1";
+    let input = parser::StringInputSource::new(text);
+    let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
+    let result = parser.next_command();
+    println!("{:?}", result);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    let (_, col) = err.position().unwrap();
+    assert_eq!(&text[col..], "() 1");
+
+    let text = "#error e(1 2)";
+    let input = parser::StringInputSource::new(text);
+    let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
+    let result = parser.next_command();
+    println!("{:?}", result);
+    assert!(result.is_err());
+    let err = result.unwrap_err();
+    let (_, col) = err.position().unwrap();
+    assert_eq!(&text[col..], "(1 2)");
+}
