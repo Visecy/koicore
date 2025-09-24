@@ -17,6 +17,7 @@ pub use error::{ParseError, ParseResult};
 pub use input::{TextInputSource, FileInputSource, StringInputSource};
 
 use input::Input;
+use nom_language::error::convert_error;
 
 /// Configuration for the line processor
 #[repr(C)]
@@ -116,7 +117,7 @@ impl<T: TextInputSource> Parser<T> {
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                 // Create a simple nom error for compatibility
                 Err(ParseError::from_nom_error(
-                    format!("Failed to parse command: '{}'", command_text),
+                    convert_error(command_text.as_str(), e.clone()),
                     line_number,
                     0,
                     command_text.clone(),
