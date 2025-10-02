@@ -8,16 +8,16 @@
 
 pub mod command;
 pub mod error;
+pub mod traceback;
 pub mod input;
 pub mod decode_buf_reader;
 mod command_parser;
 
 pub use command::{Command, Parameter, Value};
-pub use error::{ParseError, ParseResult};
+pub use error::{ParseError, ParseResult, ErrorInfo, TracebackEntry, Traceback};
 pub use input::{TextInputSource, FileInputSource, StringInputSource};
 
 use input::Input;
-use nom_language::error::convert_error;
 
 /// Configuration for the line processor
 #[repr(C)]
@@ -99,29 +99,25 @@ impl<T: TextInputSource> Parser<T> {
             ));
         }
     
-        let result = command_parser::parse_command_line(&command_text);
+        let result = command_parser::parse_command_line::<nom_language::error::VerboseError<&str>>(&command_text);
             
         match result {
             Ok(("", command)) => {
                 Ok(Some(command))
             }
             Ok((remaining, _)) => {
-                let column = command_text.len() - remaining.len() + 1;
-                Err(ParseError::syntax_with_context(
-                    format!("Unexpected input: '{}'", remaining),
+                Err(ParseError::unexpected_input(
+                    remaining.to_string(),
                     line_number,
-                    column,
                     command_text
                 ))
             }
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                 // Create a simple nom error for compatibility
                 Err(ParseError::from_nom_error(
-                    convert_error(command_text.as_str(), e.clone()),
-                    line_number,
-                    0,
-                    command_text.clone(),
-                    e.into()
+                    format!("Unexpected input at column {}", command_text.len()),
+                    command_text.as_str(),
+                    e.into(),
                 ))
             }
             Err(nom::Err::Incomplete(_)) => {

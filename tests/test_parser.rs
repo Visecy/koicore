@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use koicore::parser;
-use nom_language::error::convert_error;
 
 #[test]
 fn test_parse_hello_world() {
@@ -52,7 +51,7 @@ fn test_parse_example_with_syntax_error() {
     let result = parser.next_command();
     println!("{:?}", result);
     assert!(result.is_err());
-    if let parser::ParseError::SyntaxError{ ref message, .. } = result.unwrap_err() {
+    if let parser::ParseError { error_info: parser::ErrorInfo::SyntaxError{ ref message, .. }, .. } = result.unwrap_err() {
         println!("{}", message);
     }
 
@@ -62,7 +61,7 @@ fn test_parse_example_with_syntax_error() {
     let result = parser.next_command();
     println!("{:?}", result);
     assert!(result.is_err());
-    if let parser::ParseError::SyntaxError{ ref message, .. } = result.unwrap_err() {
+    if let parser::ParseError { error_info: parser::ErrorInfo::SyntaxError{ ref message, .. }, .. } = result.unwrap_err() {
         println!("{}", message);
     }
 
@@ -72,7 +71,7 @@ fn test_parse_example_with_syntax_error() {
     let result = parser.next_command();
     println!("{:?}", result);
     assert!(result.is_err());
-    if let parser::ParseError::SyntaxError{ ref message, .. } = result.unwrap_err() {
+    if let parser::ParseError { error_info: parser::ErrorInfo::SyntaxError{ ref message, .. }, .. } = result.unwrap_err() {
         println!("{}", message);
     }
     // let err = result.unwrap_err();
