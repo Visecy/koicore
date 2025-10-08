@@ -49,7 +49,7 @@ fn test_parse_example_with_syntax_error() {
     let input = parser::StringInputSource::new(text);
     let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
     let result = parser.next_command();
-    println!("{:?}", result);
+    println!("{:#?}", result);
     assert!(result.is_err());
     if let parser::ParseError { error_info: parser::ErrorInfo::SyntaxError{ ref message, .. }, .. } = result.unwrap_err() {
         println!("{}", message);
@@ -59,7 +59,7 @@ fn test_parse_example_with_syntax_error() {
     let input = parser::StringInputSource::new(text);
     let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
     let result = parser.next_command();
-    println!("{:?}", result);
+    println!("{:#?}", result);
     assert!(result.is_err());
     if let parser::ParseError { error_info: parser::ErrorInfo::SyntaxError{ ref message, .. }, .. } = result.unwrap_err() {
         println!("{}", message);
@@ -69,7 +69,7 @@ fn test_parse_example_with_syntax_error() {
     let input = parser::StringInputSource::new(text);
     let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
     let result = parser.next_command();
-    println!("{:?}", result);
+    println!("{:#?}", result);
     assert!(result.is_err());
     if let parser::ParseError { error_info: parser::ErrorInfo::SyntaxError{ ref message, .. }, .. } = result.unwrap_err() {
         println!("{}", message);

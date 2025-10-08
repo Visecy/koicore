@@ -225,7 +225,7 @@ fn parse_value_list<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExt
         "list",
         separated_list1(
             preceded(parse_whitespace_with_continuation, char(',')),
-            preceded(parse_whitespace_with_continuation, cut(parse_basic_value))
+            preceded(parse_whitespace_with_continuation, parse_basic_value)
         )
     ).parse(input)
 }

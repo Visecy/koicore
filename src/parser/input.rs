@@ -5,7 +5,7 @@
 
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use encoding_rs::Encoding;
 use super::decode_buf_reader::DecodeBufReader;
 
@@ -30,12 +30,21 @@ pub trait TextInputSource {
     /// Returns `Ok(Some(String))` if a line is available, `Ok(None)` if end of input is reached,
     /// or `Err(io::Error)` if an I/O error occurs.
     fn next_line(&mut self) -> io::Result<Option<String>>;
+
+    /// Get the source name (e.g., filename) for error reporting
+    /// 
+    /// # Returns
+    /// * The source name (e.g., filename) for error reporting
+    fn source_name(&self) -> &str {
+        "<string>"
+    }
 }
 
 /// Input source that reads from a file with encoding support
 pub struct FileInputSource {
     reader: DecodeBufReader<File>,
     encoding_strategy: EncodingErrorStrategy,
+    filename: PathBuf,
 }
 
 impl FileInputSource {
@@ -66,13 +75,14 @@ impl FileInputSource {
         encoding: Option<&'static Encoding>,
         strategy: EncodingErrorStrategy,
     ) -> io::Result<Self> {
+        let filename = path.as_ref().to_path_buf();
         let file = File::open(path)?;
         let reader = if let Some(enc) = encoding {
             DecodeBufReader::with_encoding_and_strategy(file, enc, strategy)
         } else {
             DecodeBufReader::with_encoding_and_strategy(file, encoding_rs::UTF_8, strategy)
         };
-        Ok(Self { reader, encoding_strategy: strategy })
+        Ok(Self { reader, filename, encoding_strategy: strategy })
     }
 
 }
@@ -104,6 +114,11 @@ impl TextInputSource for FileInputSource {
             }
             Err(e) => Err(e), // Propagate I/O errors
         }
+    }
+
+    fn source_name(&self) -> &str {
+        // We can enhance this to return the actual filename if needed
+        self.filename.to_str().unwrap_or("<unknown>")
     }
 }
 
@@ -181,5 +196,11 @@ impl<T: TextInputSource> Input<T> {
                 Err(e) => return Err(e),
             }
         }
+    }
+}
+
+impl<T: TextInputSource> AsRef<T> for Input<T> {
+    fn as_ref(&self) -> &T {
+        &self.source
     }
 }
