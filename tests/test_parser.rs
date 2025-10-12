@@ -30,7 +30,7 @@ fn test_parse_example() {
     // just test no error
     parser.process_with(|cmd| {
         println!("{:?}", cmd);
-        Ok::<(), parser::ParseError>(())
+        Ok::<(), Box<parser::ParseError>>(())
     }).expect("Failed to process file");
 }
 
