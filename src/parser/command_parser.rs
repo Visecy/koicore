@@ -256,7 +256,7 @@ fn parse_composite_param<'a, E: ParseError<&'a str> + ContextError<&'a str> + Fr
             (char('('), parse_whitespace_with_continuation),
             cut(
                 alt((
-                    map(parse_dict, |dict| CompositeValue::Dict(dict)),
+                    map(parse_dict, CompositeValue::Dict),
                     map(parse_value_list, |values| {
                         if values.len() == 1 {
                             CompositeValue::Single(values[0].clone())

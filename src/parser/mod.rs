@@ -53,7 +53,7 @@ impl<T: TextInputSource> Parser<T> {
     pub fn new(input_source: T, config: ParserConfig) -> Self {
         Self {
             input: Input::new(input_source),
-            config: config,
+            config,
         }
     }
 
@@ -158,7 +158,7 @@ impl<T: TextInputSource> Parser<T> {
     /// * `Ok(())` if all commands were processed successfully
     /// * `Err(E)` if the handler returned an error
     pub fn process_with<F, E>(&mut self, mut handler: F) -> Result<(), E>
-        where F: FnMut(Command) -> Result<(), E>, E: From<ParseError>
+        where F: FnMut(Command) -> Result<(), E>, E: From<Box<ParseError>>
     {
         loop {
             match self.next_command() {

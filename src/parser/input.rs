@@ -168,7 +168,7 @@ pub(crate) struct Input<T: TextInputSource> {
 impl<T: TextInputSource> Input<T> {
     pub fn new(source: T) -> Self {
         Self {
-            source: source,
+            source,
             line_number: 1,
         }
     }

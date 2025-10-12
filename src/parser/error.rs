@@ -11,7 +11,7 @@ use crate::parser::NomErrorNode;
 use crate::parser::TextInputSource;
 
 /// Result type for parsing operations
-pub type ParseResult<T> = Result<T, ParseError>;
+pub type ParseResult<T> = Result<T, Box<ParseError>>;
 
 /// Semantic error information without positional data
 #[derive(Debug)]
@@ -64,30 +64,30 @@ pub struct ParseError {
 
 impl ParseError {
     /// Create a new syntax error
-    pub fn syntax(message: String) -> Self {
-        ParseError {
+    pub fn syntax(message: String) -> Box<Self> {
+        Box::new(ParseError {
             error_info: ErrorInfo::SyntaxError {
                 message,
             },
             traceback: None,
             source: None,
-        }
+        })
     }
 
     /// Create a new syntax error with context
-    pub fn syntax_with_context(message: String, line: usize, column: usize, context: String) -> Self {
-        ParseError {
+    pub fn syntax_with_context(message: String, line: usize, column: usize, context: String) -> Box<Self> {
+        Box::new(ParseError {
             error_info: ErrorInfo::SyntaxError {
                 message,
             },
             traceback: Some(TracebackEntry::new(line, (column, column + 1), context)),
         source: None,
-        }
+        })
     }
     /// Create a new unexpected input error
-    pub fn unexpected_input(remaining: String, line: usize, input: String) -> Self {
+    pub fn unexpected_input(remaining: String, line: usize, input: String) -> Box<Self> {
         let column = input.len() - remaining.len() + 1;
-        ParseError {
+        Box::new(ParseError {
             traceback: Some(
                 TracebackEntry::new(line, (column, column + remaining.len()),
             "".to_string())
@@ -96,29 +96,29 @@ impl ParseError {
                 remaining,
             },
             source: None,
-        }
+        })
     }
 
     /// Create a new unexpected EOF error
-    pub fn unexpected_eof(expected: String, line: usize) -> Self {
-        ParseError {
+    pub fn unexpected_eof(expected: String, line: usize) -> Box<Self> {
+        Box::new(ParseError {
             error_info: ErrorInfo::UnexpectedEof {
                 expected,
             },
             traceback: Some(TracebackEntry::new(line, (0, 0), "".to_string())),
             source: None,
-        }
+        })
     }
 
     /// Create a new IO error from an io::Error
-    pub fn io(error: io::Error) -> Self {
-        ParseError {
+    pub fn io(error: io::Error) -> Box<Self> {
+        Box::new(ParseError {
             error_info: ErrorInfo::IoError {
                 error,
             },
             traceback: None,
             source: None,
-        }
+        })
     }
 
     /// Create a syntax error from nom error
@@ -127,18 +127,18 @@ impl ParseError {
         original_input: I,
         lineno: usize,
         nom_error: NomErrorNode<I>,
-    ) -> Self {
+    ) -> Box<Self> {
         let traceback = TracebackEntry::build_error_trace(original_input, lineno, &nom_error);
-        ParseError {
+        Box::new(ParseError {
             error_info: ErrorInfo::SyntaxError {
                 message,
             },
             traceback: Some(traceback),
             source: None,
-        }
+        })
     }
 
-    pub(crate) fn with_source<T: TextInputSource>(mut self, input: &Input<T>, lineno: usize, text: String) -> Self {
+    pub(crate) fn with_source<T: TextInputSource>(mut self: Box<Self>, input: &Input<T>, lineno: usize, text: String) -> Box<Self> {
         self.source = Some(ParserLineSource {
             filename: input.as_ref().source_name().to_string(),
             lineno,
@@ -191,8 +191,8 @@ impl fmt::Display for ParseError {
         }
         
         // Display file location and line information if available
-        if let Some(source) = &self.source {
-            if let Some(traceback) = &self.traceback {
+        if let Some(source) = &self.source
+            && let Some(traceback) = &self.traceback {
                 let (start, end) = traceback.column_range;
                 
                 // Display source location
@@ -208,9 +208,8 @@ impl fmt::Display for ParseError {
                 let arrow = " ".repeat(start + 3) + &"^".repeat(end - start);
                 write!(f, "\n    │{}", arrow)?;
             }
-        }
 
-        write!(f, "\n")?;
+        writeln!(f)?;
         // Display the traceback tree
         if let Some(traceback) = &self.traceback {
             traceback.write_tree(f, "    ", false)?;
