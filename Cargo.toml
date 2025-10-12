@@ -6,7 +6,7 @@ edition = "2024"
 license = "MIT"
 authors = ["Ovizro <ovizro@visecy.org>"]
 repository = "https://github.com/Visecy/koicore"
-keywords = ["KoiLang", "parser", "markup language"]
+keywords = ["KoiLang", "parser", "markup-language"]
 
 [dependencies]
 nom = "8.0"

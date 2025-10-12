@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "koilang_ffi"
+name = "koicore_ffi"
 version = "0.1.0"
 
 [[package]]

@@ -1,6 +1,11 @@
 [package]
-name = "koilang_ffi"
+name = "koicore_ffi"
+description = "FFI bindings for koicore"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+authors = ["Ovizro <ovizro@visecy.org>"]
+repository = "https://github.com/Visecy/koicore"
+keywords = ["KoiLang", "parser", "markup-language"]
 
 [dependencies]
