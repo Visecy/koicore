@@ -6,14 +6,13 @@
 //! - Text (regular content lines)
 //! - Annotations (lines with more # characters than the threshold)
 
-pub mod command;
 pub mod error;
 pub mod traceback;
 pub mod input;
 pub mod decode_buf_reader;
 mod command_parser;
 
-pub use command::{ Command, Parameter, Value };
+pub use super::command::{ Command, Parameter, Value };
 pub use traceback::TracebackEntry;
 pub use error::{ ParseError, ParseResult, ErrorInfo };
 pub use input::{ TextInputSource, FileInputSource, StringInputSource };
@@ -70,7 +69,7 @@ impl<T: TextInputSource> Parser<T> {
                 return Ok(None);
             }
             Err(e) => {
-                return Err(ParseError::io(e));
+                return Err(ParseError::io(e).with_source(&self.input, self.input.line_number, "".to_owned()));
             }
         };
         let mut trimmed = line_text.trim();
@@ -81,7 +80,7 @@ impl<T: TextInputSource> Parser<T> {
                     return Ok(None);
                 }
                 Err(e) => {
-                    return Err(ParseError::io(e));
+                    return Err(ParseError::io(e).with_source(&self.input, self.input.line_number, "".to_owned()));
                 }
             };
             trimmed = line_text.trim();

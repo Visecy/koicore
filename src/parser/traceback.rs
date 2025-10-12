@@ -2,6 +2,8 @@
 //!
 //! This module defines the error traceback type.
 
+use std::fmt;
+
 use nom::error::ContextError;
 use nom::error::ErrorKind;
 use nom::error::FromExternalError;
@@ -189,6 +191,35 @@ impl TracebackEntry {
             NomErrorKind::Char(c) => format!("nom.char<'{}'>", c),
             NomErrorKind::Nom(kind) => format!("nom.{:?}", kind),
         }
+}
+    pub(super) fn write_tree(&self, f: &mut fmt::Formatter<'_>, prefix: &str, is_last: bool) -> fmt::Result {
+        let connector = if is_last { "└─ " } else { "├─ " };
+        let (start, end) = self.column_range;
+        writeln!(
+            f,
+            "{}{}{} ({}–{})",
+            prefix,
+            connector,
+            self.context,
+            start,
+            end
+        )?;
+
+        let child_prefix = if is_last { "   " } else { "│  " };
+        let total_children = self.children.len();
+        for (i, child) in self.children.iter().enumerate() {
+            let is_last_child = i == total_children - 1;
+            let new_prefix = format!("{}{}", prefix, child_prefix);
+            child.write_tree(f, &new_prefix, is_last_child)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for TracebackEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.write_tree(f, "", false)
     }
 }
 

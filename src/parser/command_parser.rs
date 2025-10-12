@@ -16,7 +16,7 @@ use nom::{
 };
 use std::str::FromStr;
 
-use super::command::{ Command, CompositeValue, Parameter, Value };
+use crate::command::{ Command, CompositeValue, Parameter, Value };
 
 /// Parse a Python-style escaped character: \n, \t, \r, \x41, \u0041, etc.
 /// Also handles line continuation where \\\n should be ignored.

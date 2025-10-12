@@ -20,10 +20,8 @@ pub enum ErrorInfo {
     SyntaxError {
         /// Error message
         message: String,
-        /// Optional detailed information
-        details: Option<String>,
     },
-
+    
     // Unexpected input
     UnexpectedInput {
         /// Remaining unparsed input
@@ -62,7 +60,6 @@ pub struct ParseError {
     /// Optional traceback information
     pub traceback: Option<TracebackEntry>,
     pub source: Option<ParserLineSource>,
-
 }
 
 impl ParseError {
@@ -71,7 +68,6 @@ impl ParseError {
         ParseError {
             error_info: ErrorInfo::SyntaxError {
                 message,
-                details: None,
             },
             traceback: None,
             source: None,
@@ -83,10 +79,9 @@ impl ParseError {
         ParseError {
             error_info: ErrorInfo::SyntaxError {
                 message,
-                details: None,
             },
             traceback: Some(TracebackEntry::new(line, (column, column + 1), context)),
-            source: None,
+        source: None,
         }
     }
     /// Create a new unexpected input error
@@ -95,7 +90,7 @@ impl ParseError {
         ParseError {
             traceback: Some(
                 TracebackEntry::new(line, (column, column + remaining.len()),
-                "".to_string())
+            "".to_string())
             ),
             error_info: ErrorInfo::UnexpectedInput {
                 remaining,
@@ -137,7 +132,6 @@ impl ParseError {
         ParseError {
             error_info: ErrorInfo::SyntaxError {
                 message,
-                details: None,
             },
             traceback: Some(traceback),
             source: None,
@@ -155,15 +149,15 @@ impl ParseError {
 
     /// Get the position (line, column) associated with this error, if any
     pub fn position(&self) -> Option<(usize, usize)> {
-        self.traceback.as_ref().and_then(|tb| {
-            Some((tb.lineno, tb.column_range.0))
+        self.traceback.as_ref().map(|tb| {
+            (tb.lineno, tb.column_range.0)
         })
     }
 
     /// Get the line number associated with this error, if any
     pub fn line(&self) -> Option<usize> {
-        self.traceback.as_ref().and_then(|tb| {
-            Some(tb.lineno)
+        self.traceback.as_ref().map(|tb| {
+            tb.lineno
         })
     }
 
@@ -180,26 +174,47 @@ impl ParseError {
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Display error type and message based on error_info
         match &self.error_info {
-            ErrorInfo::SyntaxError { message, details } => {
-                write!(f, "Syntax error: {}", message)?;
-                if let Some(detail_info) = details {
-                    write!(f, "\nDetails: {}", detail_info)?;
-                }
+            ErrorInfo::SyntaxError { message } => {
+                write!(f, "SyntaxError: {}", message)?;
             }
             ErrorInfo::UnexpectedInput { remaining, .. } => {
-                write!(f, "Unexpected input: '{}'", remaining)?;
+                write!(f, "UnexpectedInputError: '{}'", remaining)?;
             }
             ErrorInfo::UnexpectedEof { expected } => {
-                write!(f, "Unexpected end of input, expected {}", expected)?;
+                write!(f, "UnexpectedEofError: '{}'", expected)?;
             }
             ErrorInfo::IoError { error } => {
-                write!(f, "IO error: {}", error)?;
+                write!(f, "IOError: {}", error)?;
             }
         }
         
-        // Display traceback information
-        todo!("Display traceback information");
+        // Display file location and line information if available
+        if let Some(source) = &self.source {
+            if let Some(traceback) = &self.traceback {
+                let (start, end) = traceback.column_range;
+                
+                // Display source location
+                write!(f, "\n   --> {}:{}:{}", source.filename, source.lineno, start)?;
+            
+            // Display the code line with visual indicators
+            write!(f, "\n    │")?;
+                
+                // Display line number and content
+                write!(f, "\n{: ^4}│   {}", source.lineno, &source.text)?;
+                
+                // Show arrow pointing to error location
+                let arrow = " ".repeat(start + 3) + &"^".repeat(end - start);
+                write!(f, "\n    │{}", arrow)?;
+            }
+        }
+
+        write!(f, "\n")?;
+        // Display the traceback tree
+        if let Some(traceback) = &self.traceback {
+            traceback.write_tree(f, "    ", false)?;
+        }
         
         Ok(())
     }
