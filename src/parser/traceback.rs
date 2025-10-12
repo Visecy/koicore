@@ -1,0 +1,284 @@
+//! Error traceback handling for the parser.
+//!
+//! This module defines the error traceback type.
+
+use std::fmt;
+
+use nom::error::ContextError;
+use nom::error::ErrorKind;
+use nom::error::FromExternalError;
+use nom::error::ParseError;
+use nom::Input;
+use nom::Offset;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Error context for `VerboseError`
+enum NomErrorKind {
+    /// Static string added by the `context` function
+    Context(&'static str),
+    /// Indicates which character was expected by the `char` function
+    Char(char),
+    /// Error kind given by various nom parsers
+    Nom(ErrorKind),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+/// Node in the nom error tree
+pub(super) struct NomErrorNode<I> {
+    /// Input position where the error occurred
+    input: I,
+    /// Nom error kind
+    kind: NomErrorKind,
+    /// Child error nodes
+    children: Vec<NomErrorNode<I>>,
+}
+
+impl<I: Input> ParseError<I> for NomErrorNode<I> {
+    fn from_error_kind(input: I, kind: ErrorKind) -> Self {
+        NomErrorNode {
+            input,
+            kind: NomErrorKind::Nom(kind),
+            children: vec![],
+        }
+    }
+
+    fn append(input: I, kind: ErrorKind, mut other: Self) -> Self {
+        match (kind, other.kind) {
+            (ErrorKind::Alt, NomErrorKind::Nom(ErrorKind::Alt)) => {
+                // Both are Alt, just return the existing node
+                other.input = input;
+                other
+            }
+            _ => {
+                other.children.push(NomErrorNode::from_error_kind(input, kind));
+                other
+            }
+            
+        }
+    }
+
+    fn from_char(input: I, c: char) -> Self {
+        NomErrorNode {
+            input,
+            kind: NomErrorKind::Char(c),
+            children: vec![],
+        }
+    }
+
+    fn or(mut self, mut other: Self) -> Self {
+        match (self.kind, other.kind)  {
+            (NomErrorKind::Nom(ErrorKind::Alt), NomErrorKind::Nom(ErrorKind::Alt)) => {
+                self.children.extend(other.children);
+                self
+            }
+            (NomErrorKind::Nom(ErrorKind::Alt), _) => {
+                self.children.push(other);
+                self
+            }
+            (_, NomErrorKind::Nom(ErrorKind::Alt)) => {
+                other.children.push(self);
+                other
+            }
+            _ => {
+                // Neither is an Alt, create a new Alt node
+                NomErrorNode {
+                    input: self.input.clone(), // or other.input.clone(), they should be the same
+                    kind: NomErrorKind::Nom(ErrorKind::Alt),
+                    children: vec![self, other],
+                }
+            }
+        }
+    }
+}
+
+impl<I> ContextError<I> for NomErrorNode<I> {
+    fn add_context(input: I, ctx: &'static str, other: Self) -> Self {
+        NomErrorNode {
+            input,
+            kind: NomErrorKind::Context(ctx),
+            children: vec![other],
+        }
+    }
+}
+
+impl<I: Input, E> FromExternalError<I, E> for NomErrorNode<I> {
+    /// Create a new error from an input position and an external error
+    fn from_external_error(input: I, kind: ErrorKind, _e: E) -> Self {
+        Self::from_error_kind(input, kind)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TracebackEntry {
+    /// Line number where this traceback point occurred
+    pub lineno: usize,
+    /// Column number where this traceback point occurred
+    pub column_range: (usize, usize),
+    /// Context description (from nom error kind or parsing context)
+    pub context: String,
+    /// Traceback children (for nested contexts)
+    pub children: Vec<TracebackEntry>,
+}
+
+impl TracebackEntry {
+    pub fn new(lineno: usize, column_range: (usize, usize), context: String) -> Self {
+        Self {
+            lineno,
+            column_range,
+            context,
+            children: vec![],
+        }
+    }
+
+    pub(super) fn build_error_trace<I: core::ops::Deref<Target = str> + Input>(input: I, line: usize, error: &NomErrorNode<I>) -> Self {
+        let (line_offset, column, _) = Self::extract_position_info(&input, &error.input);
+        let context = Self::format_error_kind(&error.kind);
+
+        let children = error.children.iter().map(|child| Self::build_error_trace(input.clone(), line, child)).collect();
+
+        TracebackEntry {
+            lineno : line + line_offset - 1,
+            column_range: (column, column + error.input.len()),
+            context,
+            children,
+        }
+    }
+    
+    /// Extract line, column, and line content from input substrings
+    #[inline]
+    fn extract_position_info<I: core::ops::Deref<Target = str>>(
+        input: &I,
+        substring: &I,
+    ) -> (usize, usize, String) {
+        let offset = input.offset(substring);
+
+        if input.is_empty() {
+            return (1, 1, String::new());
+        }
+
+        let prefix = &input.as_bytes()[..offset];
+
+        // Count the number of newlines in the first `offset` bytes of input
+        let line_number = prefix.iter().filter(|&&b| b == b'\n').count() + 1;
+
+        // Find the line that includes the subslice:
+        // Find the *last* newline before the substring starts
+        let line_begin = prefix
+            .iter()
+            .rev()
+            .position(|&b| b == b'\n')
+            .map(|pos| offset - pos)
+            .unwrap_or(0);
+
+        // Find the full line after that newline
+        let line = input[line_begin..]
+            .lines()
+            .next()
+            .unwrap_or(&input[line_begin..])
+            .trim_end();
+
+        // The (1-indexed) column number is the offset of our substring into that line
+        let column_number = line.offset(substring) + 1;
+
+        (line_number, column_number, line.to_string())
+    }
+
+    /// Format nom error kind into human-readable context
+    #[inline]
+    fn format_error_kind(error_kind: &NomErrorKind) -> String {
+        match error_kind {
+            NomErrorKind::Context(ctx) => format!("koicore.{}", ctx),
+            NomErrorKind::Char(c) => format!("nom.char<'{}'>", c),
+            NomErrorKind::Nom(kind) => format!("nom.{:?}", kind),
+        }
+}
+    pub(super) fn write_tree(&self, f: &mut fmt::Formatter<'_>, prefix: &str, is_last: bool) -> fmt::Result {
+        let connector = if is_last { "└─ " } else { "├─ " };
+        let (start, end) = self.column_range;
+        writeln!(
+            f,
+            "{}{}{} ({}–{})",
+            prefix,
+            connector,
+            self.context,
+            start,
+            end
+        )?;
+
+        let child_prefix = if is_last { "   " } else { "│  " };
+        let total_children = self.children.len();
+        for (i, child) in self.children.iter().enumerate() {
+            let is_last_child = i == total_children - 1;
+            let new_prefix = format!("{}{}", prefix, child_prefix);
+            child.write_tree(f, &new_prefix, is_last_child)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for TracebackEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.write_tree(f, "", false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::parser::command_parser;
+
+    use super::*;
+
+    #[test]
+    fn test_traceback_entry_convert_error() {
+        let input = "line1\nline2\nline3";
+        let error = NomErrorNode::from_char(input, 'a');
+        let entry = TracebackEntry::build_error_trace(input, 1, &error);
+        assert_eq!(entry.lineno, 1);
+        assert_eq!(entry.column_range, (1, input.len() + 1));
+        assert_eq!(entry.context, "nom.char<'a'>");
+        assert!(entry.children.is_empty());
+    }
+
+    #[test]
+    fn test_parser_error_traceback() {
+        let input = "error e(";
+        let result = command_parser::parse_command_line::<'_, NomErrorNode<&str>>(input);
+        assert!(result.is_err());
+        let node = result.unwrap_err();
+        println!("Parser error traceback: {:#?}", node);
+        match node {
+            nom::Err::Error(e) | nom::Err::Failure(e) => {
+                let traceback = TracebackEntry::build_error_trace(input, 1, &e);
+                println!("Converted traceback: {:#?}", traceback);
+            }
+            _ => unreachable!()
+        }
+
+        let input = "error e() 1";
+        let result = command_parser::parse_command_line::<'_, NomErrorNode<&str>>(input);
+        assert!(result.is_err());
+        let node = result.unwrap_err();
+        println!("Parser error traceback: {:#?}", node);
+        match node {
+            nom::Err::Error(e) | nom::Err::Failure(e) => {
+                let traceback = TracebackEntry::build_error_trace(input, 1, &e);
+                println!("Converted traceback: {:#?}", traceback);
+            }
+            _ => unreachable!()
+        }
+
+        let input = "error e(1, 2 3)";
+        let result = command_parser::parse_command_line::<'_, NomErrorNode<&str>>(input);
+        assert!(result.is_err());
+        let node = result.unwrap_err();
+        println!("Parser error traceback: {:#?}", node);
+        match node {
+            nom::Err::Error(e) | nom::Err::Failure(e) => {
+                let traceback = TracebackEntry::build_error_trace(input, 1, &e);
+                println!("Converted traceback: {:#?}", traceback);
+            }
+            _ => unreachable!()
+        }
+    }
+}

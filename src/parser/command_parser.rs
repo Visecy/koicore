@@ -8,22 +8,19 @@ use nom::{
     bytes::complete::{ is_not, tag, take_while, take_while1, take_while_m_n },
     character::complete::{ char, digit1, multispace1 },
     combinator::{ cut, map, map_opt, map_res, opt, recognize, value, verify },
-    error::{ context, ErrorKind, ParseError },
+    error::{ context, ContextError, FromExternalError, ParseError },
     multi::{ fold_many0, many0, many1, separated_list1 },
     sequence::{ delimited, pair, preceded, separated_pair },
     IResult,
     Parser,
 };
-use nom_language::error::VerboseError;
 use std::str::FromStr;
 
-use super::command::{ Command, CompositeValue, Parameter, Value };
-
-type NomParserError<'a> = VerboseError<&'a str>;
+use crate::command::{ Command, CompositeValue, Parameter, Value };
 
 /// Parse a Python-style escaped character: \n, \t, \r, \x41, \u0041, etc.
 /// Also handles line continuation where \\\n should be ignored.
-fn parse_escaped_char(input: &str) -> IResult<&str, char, NomParserError<'_>> {
+fn parse_escaped_char<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, char, E> {
     preceded(
         char('\\'),
         alt((
@@ -73,7 +70,7 @@ fn parse_escaped_char(input: &str) -> IResult<&str, char, NomParserError<'_>> {
 }
 
 /// Parse a non-empty block of text that doesn't include \ or "
-fn parse_string_literal(input: &str) -> IResult<&str, &str, NomParserError<'_>> {
+fn parse_string_literal<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
     let not_quote_slash = is_not("\"\\");
     verify(not_quote_slash, |s: &str| !s.is_empty()).parse(input)
 }
@@ -88,12 +85,12 @@ enum StringFragment<'a> {
 }
 
 /// Parse line continuation: backslash followed by newline
-fn parse_line_continuation(input: &str) -> IResult<&str, (), NomParserError<'_>> {
+fn parse_line_continuation<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, (), E> {
     map((char('\\'), char('\n')), |_| ()).parse(input)
 }
 
 /// Combine parse_string_literal, parse_line_continuation, and parse_escaped_char into a StringFragment
-fn parse_string_fragment(input: &str) -> IResult<&str, StringFragment<'_>, NomParserError<'_>> {
+fn parse_string_fragment<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, StringFragment<'a>, E> {
     alt((
         map(parse_string_literal, StringFragment::Literal),
         map(parse_line_continuation, |_| { StringFragment::LineContinuation }),
@@ -102,7 +99,7 @@ fn parse_string_fragment(input: &str) -> IResult<&str, StringFragment<'_>, NomPa
 }
 
 /// Parse a quoted string
-fn parse_string(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
+fn parse_string<'a, E: ParseError<&'a str> + ContextError<&'a str>>(input: &'a str) -> IResult<&'a str, Value, E> {
     let build_string = fold_many0(parse_string_fragment, String::new, |mut string, fragment| {
         match fragment {
             StringFragment::Literal(s) => string.push_str(s),
@@ -120,12 +117,12 @@ fn parse_string(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
 }
 
 /// Parse a decimal integer
-fn parse_decimal_int(input: &str) -> IResult<&str, i64, NomParserError<'_>> {
+fn parse_decimal_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, i64, E> {
     map_res(recognize(pair(opt(char('-')), digit1)), |s: &str| { i64::from_str(s) }).parse(input)
 }
 
 /// Parse a hexadecimal integer (0x...)
-fn parse_hex_int(input: &str) -> IResult<&str, i64, NomParserError<'_>> {
+fn parse_hex_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, i64, E> {
     preceded(
         tag("0x"),
         map_res(
@@ -136,7 +133,7 @@ fn parse_hex_int(input: &str) -> IResult<&str, i64, NomParserError<'_>> {
 }
 
 /// Parse a binary integer (0b...)
-fn parse_bin_int(input: &str) -> IResult<&str, i64, NomParserError<'_>> {
+fn parse_bin_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, i64, E> {
     preceded(
         tag("0b"),
         map_res(
@@ -147,7 +144,7 @@ fn parse_bin_int(input: &str) -> IResult<&str, i64, NomParserError<'_>> {
 }
 
 /// Parse any integer type (decimal, hex, binary)
-fn parse_integer(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
+fn parse_integer<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, Value, E> {
     context(
         "integer",
         alt((
@@ -159,7 +156,7 @@ fn parse_integer(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
 }
 
 /// Parse a float number
-fn parse_float(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
+fn parse_float<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Value, E> {
     context(
         "float",
         map_res(
@@ -177,17 +174,17 @@ fn parse_float(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
 }
 
 /// Helper for float parsing - digits or empty
-fn digit0(input: &str) -> IResult<&str, &str, NomParserError<'_>> {
+fn digit0<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
     take_while(|c: char| c.is_ascii_digit())(input)
 }
 
 /// Helper for float parsing - exponent part
-fn float_exp(input: &str) -> IResult<&str, &str, NomParserError<'_>> {
+fn float_exp<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
     recognize((alt((char('e'), char('E'))), opt(alt((char('+'), char('-')))), digit1)).parse(input)
 }
 
 /// Parse a literal (valid identifier)
-fn parse_literal_str(input: &str) -> IResult<&str, &str, NomParserError<'_>> {
+fn parse_literal_str<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
     recognize(
         pair(
             take_while1(|c: char| (c.is_ascii_alphabetic() || c == '_')),
@@ -197,7 +194,7 @@ fn parse_literal_str(input: &str) -> IResult<&str, &str, NomParserError<'_>> {
 }
 
 /// Parse a literal (valid identifier)
-fn parse_literal(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
+fn parse_literal<'a, E: ParseError<&'a str> + ContextError<&'a str>>(input: &'a str) -> IResult<&'a str, Value, E> {
     context(
         "literal",
         map(parse_literal_str, |s: &str| Value::Literal(s.to_string()))
@@ -205,9 +202,9 @@ fn parse_literal(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
 }
 
 /// Parse any basic value type
-fn parse_basic_value(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
+fn parse_basic_value<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Value, E> {
     context(
-        "basic value",
+        "basic_value",
         alt((
             parse_string, // Try string first since it starts with a quote
             parse_float,
@@ -218,23 +215,23 @@ fn parse_basic_value(input: &str) -> IResult<&str, Value, NomParserError<'_>> {
 }
 
 /// Parse a single parameter value (not composite)
-fn parse_single_param(input: &str) -> IResult<&str, Parameter, NomParserError<'_>> {
+fn parse_single_param<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Parameter, E> {
     map(parse_basic_value, Parameter::Basic).parse(input)
 }
 
 /// Parse a list of values in parentheses: (item1, item2, ...)
-fn parse_value_list(input: &str) -> IResult<&str, Vec<Value>, NomParserError<'_>> {
+fn parse_value_list<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Vec<Value>, E> {
     context(
         "list",
         separated_list1(
             preceded(parse_whitespace_with_continuation, char(',')),
-            preceded(parse_whitespace_with_continuation, cut(parse_basic_value))
+            preceded(parse_whitespace_with_continuation, parse_basic_value)
         )
     ).parse(input)
 }
 
 /// Parse a dictionary in parentheses: (key1: value1, key2: value2, ...)
-fn parse_dict(input: &str) -> IResult<&str, Vec<(String, Value)>, NomParserError<'_>> {
+fn parse_dict<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Vec<(String, Value)>, E> {
     context(
         "dictionary",
         separated_list1(
@@ -252,14 +249,14 @@ fn parse_dict(input: &str) -> IResult<&str, Vec<(String, Value)>, NomParserError
 }
 
 /// Parse composite parameters: key(value), key(item1, item2), key(x: 1, y: 2)
-fn parse_composite_param(input: &str) -> IResult<&str, Parameter, NomParserError<'_>> {
-    context("composite parameter", (
+fn parse_composite_param<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Parameter, E> {
+    context("composite_parameter", (
         parse_literal_str,
         delimited(
             (char('('), parse_whitespace_with_continuation),
             cut(
                 alt((
-                    map(parse_dict, |dict| CompositeValue::Dict(dict)),
+                    map(parse_dict, CompositeValue::Dict),
                     map(parse_value_list, |values| {
                         if values.len() == 1 {
                             CompositeValue::Single(values[0].clone())
@@ -279,14 +276,14 @@ fn parse_composite_param(input: &str) -> IResult<&str, Parameter, NomParserError
 }
 
 /// Parse any parameter type (basic or composite)
-fn parse_parameter(input: &str) -> IResult<&str, Parameter, NomParserError<'_>> {
+fn parse_parameter<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Parameter, E> {
     context("parameter", alt((parse_composite_param, parse_single_param))).parse(input)
 }
 
 /// Parse a command name (can be literal or number)
-fn parse_command_name(input: &str) -> IResult<&str, String, NomParserError<'_>> {
+fn parse_command_name<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, String, E> {
     context(
-        "command name",
+        "command_name",
         cut(
             alt((
                 map(parse_literal_str, |v| v.to_string()),
@@ -311,7 +308,7 @@ fn parse_whitespace_with_continuation1<'a, E: ParseError<&'a str>>(
 }
 
 /// Parse a complete command line: command_name [param1] [param2] ...
-pub fn parse_command_line(input: &str) -> IResult<&str, Command, NomParserError<'_>> {
+pub fn parse_command_line<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Command, E> {
     (parse_command_name, many0(preceded(parse_whitespace_with_continuation1, cut(parse_parameter))))
         .parse(input)
         .map(|(remaining, (name, params))| (remaining, Command::new(name, params)))
@@ -323,28 +320,28 @@ mod tests {
 
     #[test]
     fn test_parse_integer() {
-        assert_eq!(parse_integer("123"), Ok(("", Value::Int(123))));
-        assert_eq!(parse_integer("-456"), Ok(("", Value::Int(-456))));
-        assert_eq!(parse_integer("0x1A"), Ok(("", Value::Int(26))));
-        assert_eq!(parse_integer("0b101"), Ok(("", Value::Int(5))));
+        assert_eq!(parse_integer::<nom::error::Error<&str>>("123"), Ok(("", Value::Int(123))));
+        assert_eq!(parse_integer::<nom::error::Error<&str>>("-456"), Ok(("", Value::Int(-456))));
+        assert_eq!(parse_integer::<nom::error::Error<&str>>("0x1A"), Ok(("", Value::Int(26))));
+        assert_eq!(parse_integer::<nom::error::Error<&str>>("0b101"), Ok(("", Value::Int(5))));
     }
 
     #[test]
     fn test_parse_float() {
-        assert_eq!(parse_float("1.23"), Ok(("", Value::Float(1.23))));
-        assert_eq!(parse_float("-4.56"), Ok(("", Value::Float(-4.56))));
-        assert_eq!(parse_float("1e-2"), Ok(("", Value::Float(0.01))));
+        assert_eq!(parse_float::<nom::error::Error<&str>>("1.23"), Ok(("", Value::Float(1.23))));
+        assert_eq!(parse_float::<nom::error::Error<&str>>("-4.56"), Ok(("", Value::Float(-4.56))));
+        assert_eq!(parse_float::<nom::error::Error<&str>>("1e-2"), Ok(("", Value::Float(0.01))));
     }
 
     #[test]
     fn test_parse_literal() {
-        assert_eq!(parse_literal("hello"), Ok(("", Value::Literal("hello".to_string()))));
-        assert_eq!(parse_literal("_test_123"), Ok(("", Value::Literal("_test_123".to_string()))));
+        assert_eq!(parse_literal::<nom::error::Error<&str>>("hello"), Ok(("", Value::Literal("hello".to_string()))));
+        assert_eq!(parse_literal::<nom::error::Error<&str>>("_test_123"), Ok(("", Value::Literal("_test_123".to_string()))));
     }
 
     #[test]
     fn test_parse_command_simple() {
-        let result = parse_command_line("command");
+        let result = parse_command_line::<nom::error::Error<&str>>("command");
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
         assert_eq!(remaining, "");
@@ -354,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_parse_command_with_params() {
-        let result = parse_command_line("draw Line 2");
+        let result = parse_command_line::<nom::error::Error<&str>>("draw Line 2");
         println!("Result: {:?}", result);
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
@@ -368,12 +365,12 @@ mod tests {
     #[test]
     fn test_parse_string_parameter() {
         // Test basic value parsing with string
-        let basic_result = parse_basic_value("\"Hello World\"");
+        let basic_result = parse_basic_value::<nom::error::Error<&str>>("\"Hello World\"");
         println!("Basic value parse result: {:?}", basic_result);
         assert!(basic_result.is_ok());
 
         // Test the full command
-        let result = parse_command_line("say \"Hello World\"");
+        let result = parse_command_line::<nom::error::Error<&str>>("say \"Hello World\"");
         println!("String parse result: {:?}", result);
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
@@ -383,7 +380,7 @@ mod tests {
         assert_eq!(cmd.params()[0], Parameter::from("Hello World"));
 
         // Test escape sequences
-        let escape_result = parse_basic_value("\"Hello\\nWorld\"");
+        let escape_result = parse_basic_value::<nom::error::Error<&str>>("\"Hello\\nWorld\"");
         println!("Escape parse result: {:?}", escape_result);
         assert!(escape_result.is_ok());
         if let Ok((_, Value::String(s))) = escape_result {
@@ -391,7 +388,7 @@ mod tests {
         }
 
         // Test unicode escape
-        let unicode_result = parse_basic_value("\"Emoji: \\U0001F602\"");
+        let unicode_result = parse_basic_value::<nom::error::Error<&str>>("\"Emoji: \\U0001F602\"");
         println!("Unicode parse result: {:?}", unicode_result);
         assert!(unicode_result.is_ok());
         if let Ok((_, Value::String(s))) = unicode_result {
@@ -399,7 +396,7 @@ mod tests {
         }
 
         // Test hex escape
-        let hex_result = parse_basic_value("\"Hex: \\x41\"");
+        let hex_result = parse_basic_value::<nom::error::Error<&str>>("\"Hex: \\x41\"");
         println!("Hex parse result: {:?}", hex_result);
         assert!(hex_result.is_ok());
         if let Ok((_, Value::String(s))) = hex_result {
@@ -407,7 +404,7 @@ mod tests {
         }
 
         // Test octal escape
-        let octal_result = parse_basic_value("\"Octal: \\101\"");
+        let octal_result = parse_basic_value::<nom::error::Error<&str>>("\"Octal: \\101\"");
         println!("Octal parse result: {:?}", octal_result);
         assert!(octal_result.is_ok());
         if let Ok((_, Value::String(s))) = octal_result {
@@ -417,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_parse_composite_single() {
-        let result = parse_command_line("draw thickness(2)");
+        let result = parse_command_line::<nom::error::Error<&str>>("draw thickness(2)");
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
         assert_eq!(remaining, "");
@@ -431,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_parse_composite_list() {
-        let result = parse_command_line("draw color(255, 255, 255)");
+        let result = parse_command_line::<nom::error::Error<&str>>("draw color(255, 255, 255)");
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
         assert_eq!(remaining, "");
@@ -441,7 +438,7 @@ mod tests {
 
     #[test]
     fn test_parse_composite_dict() {
-        let result = parse_command_line("draw pos(x: 10, y: 20)");
+        let result = parse_command_line::<nom::error::Error<&str>>("draw pos(x: 10, y: 20)");
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
         assert_eq!(remaining, "");
@@ -451,7 +448,7 @@ mod tests {
 
     #[test]
     fn test_parse_mixed_parameters() {
-        let result = parse_command_line(
+        let result = parse_command_line::<nom::error::Error<&str>>(
             "draw Line 2 pos(x: 0, y: 0) thickness(2) color(255, 255, 255)"
         );
         assert!(result.is_ok());
@@ -490,7 +487,7 @@ mod tests {
 
     #[test]
     fn test_parse_number_command() {
-        let result = parse_command_line("114 arg1 arg2");
+        let result = parse_command_line::<nom::error::Error<&str>>("114 arg1 arg2");
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
         assert_eq!(remaining, "");
@@ -501,7 +498,7 @@ mod tests {
     #[test]
     fn test_parse_complex_example() {
         // Test the example from Kola README
-        let result = parse_command_line(
+        let result = parse_command_line::<nom::error::Error<&str>>(
             "draw Line 2 pos0(x: 0, y: 0) pos1(x: 16, y: 16) thickness(2) color(255, 255, 255)"
         );
         assert!(result.is_ok());
@@ -513,14 +510,14 @@ mod tests {
 
     #[test]
     fn test_escapes_newline() {
-        let result = parse_basic_value("\"Hello\\\nWorld\"");
+        let result = parse_basic_value::<nom::error::Error<&str>>("\"Hello\\\nWorld\"");
         println!("Escape parse result: {:?}", result);
         assert!(result.is_ok());
         if let Ok((_, Value::String(s))) = result {
             assert_eq!(s, "HelloWorld");
         }
 
-        let result = parse_command_line("draw Line\\\n2");
+        let result = parse_command_line::<nom::error::Error<&str>>("draw Line\\\n2");
         println!("Command parse result: {:?}", result);
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
@@ -534,7 +531,7 @@ mod tests {
     #[test]
     fn test_line_continuation_in_composite_params() {
         // Test line continuation in composite parameters
-        let result = parse_command_line("draw pos(x: 10,\\\ny: 20)");
+        let result = parse_command_line::<nom::error::Error<&str>>("draw pos(x: 10,\\\ny: 20)");
         println!("Composite dict with line continuation: {:?}", result);
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
@@ -543,7 +540,7 @@ mod tests {
         assert_eq!(cmd.params().len(), 1);
 
         // Test line continuation in list parameters
-        let result = parse_command_line("draw color(255,\\\n255,\\\n255)");
+        let result = parse_command_line::<nom::error::Error<&str>>("draw color(255,\\\n255,\\\n255)");
         println!("Composite list with line continuation: {:?}", result);
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
@@ -552,7 +549,7 @@ mod tests {
         assert_eq!(cmd.params().len(), 1);
 
         // Test line continuation in single parameter
-        let result = parse_command_line("draw thickness(\\\n2)");
+        let result = parse_command_line::<nom::error::Error<&str>>("draw thickness(\\\n2)");
         println!("Composite single with line continuation: {:?}", result);
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
@@ -564,7 +561,7 @@ mod tests {
     #[test]
     fn test_multiple_line_continuations() {
         // Test multiple line continuations
-        let result = parse_command_line("draw \\\nLine \\\n2 \\\npos(x: 0,\\\ny: 0)");
+        let result = parse_command_line::<nom::error::Error<&str>>("draw \\\nLine \\\n2 \\\npos(x: 0,\\\ny: 0)");
         println!("Multiple line continuations: {:?}", result);
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();

@@ -4,160 +4,218 @@
 
 use std::fmt;
 use std::io;
-use nom_language::error::VerboseError;
+
+use crate::parser::input::Input;
+use crate::parser::traceback::TracebackEntry;
+use crate::parser::NomErrorNode;
+use crate::parser::TextInputSource;
 
 /// Result type for parsing operations
-pub type ParseResult<T> = Result<T, ParseError>;
+pub type ParseResult<T> = Result<T, Box<ParseError>>;
 
-/// Error types that can occur during KoiLang parsing
+/// Semantic error information without positional data
 #[derive(Debug)]
-pub enum ParseError {
+pub enum ErrorInfo {
     /// Syntax error in the input
     SyntaxError {
         /// Error message
         message: String,
-        /// Line number where the error occurred
-        line: usize,
-        /// Column number where the error occurred
-        column: usize,
-        /// Context text around the error location
-        context: String,
-        /// Optional detailed information
-        details: Option<String>,
-        /// Original nom VerboseError (if from nom parsing error)
-        nom_error: Option<VerboseError<String>>,
+    },
+    
+    // Unexpected input
+    UnexpectedInput {
+        /// Remaining unparsed input
+        remaining: String,
     },
     
     /// Unexpected end of input
     UnexpectedEof {
         /// Expected token or structure
         expected: String,
-        /// Line number where the error occurred
-        line: usize,
-        /// Source file or input information
-        source: Option<String>,
     },
     
     /// IO error (for file-based parsing)
     IoError {
         /// The underlying IO error
         error: io::Error,
-        /// Source file or input information
-        source: Option<String>,
     },
+}
+
+/// Information about the source of a parsed line
+#[derive(Debug, Clone)]
+pub struct ParserLineSource {
+    /// Source file path
+    pub filename: String,
+    /// Line number in the source file
+    pub lineno: usize,
+    /// The input line content
+    pub text: String,
+}
+
+/// Combined error type containing both semantic error information and traceback
+#[derive(Debug)]
+pub struct ParseError {
+    /// The semantic error information
+    pub error_info: ErrorInfo,
+    /// Optional traceback information
+    pub traceback: Option<TracebackEntry>,
+    pub source: Option<ParserLineSource>,
 }
 
 impl ParseError {
     /// Create a new syntax error
-    pub fn syntax(message: String, line: usize, column: usize) -> Self {
-        ParseError::SyntaxError {
-            message,
-            line,
-            column,
-            context: String::new(),
-            details: None,
-            nom_error: None,
-        }
+    pub fn syntax(message: String) -> Box<Self> {
+        Box::new(ParseError {
+            error_info: ErrorInfo::SyntaxError {
+                message,
+            },
+            traceback: None,
+            source: None,
+        })
     }
 
     /// Create a new syntax error with context
-    pub fn syntax_with_context(message: String, line: usize, column: usize, context: String) -> Self {
-        ParseError::SyntaxError {
-            message,
-            line,
-            column,
-            context,
-            details: None,
-            nom_error: None,
-        }
+    pub fn syntax_with_context(message: String, line: usize, column: usize, context: String) -> Box<Self> {
+        Box::new(ParseError {
+            error_info: ErrorInfo::SyntaxError {
+                message,
+            },
+            traceback: Some(TracebackEntry::new(line, (column, column + 1), context)),
+        source: None,
+        })
+    }
+    /// Create a new unexpected input error
+    pub fn unexpected_input(remaining: String, line: usize, input: String) -> Box<Self> {
+        let column = input.len() - remaining.len() + 1;
+        Box::new(ParseError {
+            traceback: Some(
+                TracebackEntry::new(line, (column, column + remaining.len()),
+            "".to_string())
+            ),
+            error_info: ErrorInfo::UnexpectedInput {
+                remaining,
+            },
+            source: None,
+        })
     }
 
     /// Create a new unexpected EOF error
-    pub fn unexpected_eof(expected: String, line: usize) -> Self {
-        ParseError::UnexpectedEof {
-            expected,
-            line,
+    pub fn unexpected_eof(expected: String, line: usize) -> Box<Self> {
+        Box::new(ParseError {
+            error_info: ErrorInfo::UnexpectedEof {
+                expected,
+            },
+            traceback: Some(TracebackEntry::new(line, (0, 0), "".to_string())),
             source: None,
-        }
+        })
     }
 
     /// Create a new IO error from an io::Error
-    pub fn io(error: io::Error) -> Self {
-        ParseError::IoError {
-            error,
+    pub fn io(error: io::Error) -> Box<Self> {
+        Box::new(ParseError {
+            error_info: ErrorInfo::IoError {
+                error,
+            },
+            traceback: None,
             source: None,
-        }
+        })
     }
 
     /// Create a syntax error from nom error
-    pub fn from_nom_error(
+    pub(super) fn from_nom_error<I: core::ops::Deref<Target = str> + nom::Input>(
         message: String,
-        line: usize,
-        column: usize,
-        context: String,
-        nom_error: VerboseError<String>,
-    ) -> Self {
-        ParseError::SyntaxError {
-            message,
-            line,
-            column,
-            context,
-            details: None,
-            nom_error: Some(nom_error),
-        }
+        original_input: I,
+        lineno: usize,
+        nom_error: NomErrorNode<I>,
+    ) -> Box<Self> {
+        let traceback = TracebackEntry::build_error_trace(original_input, lineno, &nom_error);
+        Box::new(ParseError {
+            error_info: ErrorInfo::SyntaxError {
+                message,
+            },
+            traceback: Some(traceback),
+            source: None,
+        })
     }
 
+    pub(crate) fn with_source<T: TextInputSource>(mut self: Box<Self>, input: &Input<T>, lineno: usize, text: String) -> Box<Self> {
+        self.source = Some(ParserLineSource {
+            filename: input.as_ref().source_name().to_string(),
+            lineno,
+            text,
+        });
+        self
+    }
 
     /// Get the position (line, column) associated with this error, if any
     pub fn position(&self) -> Option<(usize, usize)> {
-        match self {
-            ParseError::SyntaxError { line, column, .. } => Some((*line, *column)),
-            ParseError::UnexpectedEof { line, .. } => Some((*line, 0)),
-            ParseError::IoError { .. } => None,
-        }
+        self.traceback.as_ref().map(|tb| {
+            (tb.lineno, tb.column_range.0)
+        })
     }
 
     /// Get the line number associated with this error, if any
     pub fn line(&self) -> Option<usize> {
-        match self {
-            ParseError::SyntaxError { line, .. } => Some(*line),
-            ParseError::UnexpectedEof { line, .. } => Some(*line),
-            ParseError::IoError { .. } => None,
+        self.traceback.as_ref().map(|tb| {
+            tb.lineno
+        })
+    }
+
+    /// Get the error message
+    pub fn message(&self) -> String {
+        match &self.error_info {
+            ErrorInfo::SyntaxError { message, .. } => message.clone(),
+            ErrorInfo::UnexpectedInput { remaining, .. } => format!("Unexpected input: '{}'", remaining),
+            ErrorInfo::UnexpectedEof { expected, .. } => format!("Unexpected end of input, expected {}", expected),
+            ErrorInfo::IoError { error, .. } => error.to_string(),
         }
     }
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ParseError::SyntaxError { message, line, column, context, details, nom_error } => {
-                write!(f, "Syntax error at line {}, column {}: {}", line, column, message)?;
-                if !context.is_empty() {
-                    write!(f, "\nContext: {}", context)?;
-                }
-                if let Some(detail_info) = details {
-                    write!(f, "\nDetails: {}", detail_info)?;
-                }
-                if let Some(nom_err) = nom_error {
-                    write!(f, "\nParse details: {:?}", nom_err)?;
-                }
-                Ok(())
+        // Display error type and message based on error_info
+        match &self.error_info {
+            ErrorInfo::SyntaxError { message } => {
+                write!(f, "SyntaxError: {}", message)?;
             }
-            ParseError::UnexpectedEof { expected, line, source } => {
-                write!(f, "Unexpected end of input at line {}, expected {}", line, expected)?;
-                if let Some(src) = source {
-                    write!(f, " in {}", src)?;
-                }
-                Ok(())
+            ErrorInfo::UnexpectedInput { remaining, .. } => {
+                write!(f, "UnexpectedInputError: '{}'", remaining)?;
             }
-            ParseError::IoError { error, source } => {
-                write!(f, "IO error: {}", error)?;
-                if let Some(src) = source {
-                    write!(f, " in {}", src)?;
-                }
-                Ok(())
+            ErrorInfo::UnexpectedEof { expected } => {
+                write!(f, "UnexpectedEofError: '{}'", expected)?;
+            }
+            ErrorInfo::IoError { error } => {
+                write!(f, "IOError: {}", error)?;
             }
         }
+        
+        // Display file location and line information if available
+        if let Some(source) = &self.source
+            && let Some(traceback) = &self.traceback {
+                let (start, end) = traceback.column_range;
+                
+                // Display source location
+                write!(f, "\n   --> {}:{}:{}", source.filename, source.lineno, start)?;
+            
+            // Display the code line with visual indicators
+            write!(f, "\n    │")?;
+                
+                // Display line number and content
+                write!(f, "\n{: ^4}│   {}", source.lineno, &source.text)?;
+                
+                // Show arrow pointing to error location
+                let arrow = " ".repeat(start + 3) + &"^".repeat(end - start);
+                write!(f, "\n    │{}", arrow)?;
+            }
+
+        writeln!(f)?;
+        // Display the traceback tree
+        if let Some(traceback) = &self.traceback {
+            traceback.write_tree(f, "    ", false)?;
+        }
+        
+        Ok(())
     }
 }
 
