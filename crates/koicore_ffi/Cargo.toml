@@ -8,4 +8,11 @@ authors = ["Ovizro <ovizro@visecy.org>"]
 repository = "https://github.com/Visecy/koicore"
 keywords = ["KoiLang", "parser", "markup-language"]
 
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[build-dependencies]
+cbindgen = "0.29"
+
 [dependencies]
+koicore = { path = "../.." }
