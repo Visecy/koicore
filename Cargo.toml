@@ -8,11 +8,13 @@ authors = ["Ovizro <ovizro@visecy.org>"]
 repository = "https://github.com/Visecy/koicore"
 keywords = ["KoiLang", "parser", "markup-language"]
 
+[[example]]
+name = "decode_buf_reader_example"
+path = "examples/decode_buf_reader_example.rs"
+
 [dependencies]
 nom = "8.0"
 encoding_rs = "0.8"
 
 [workspace]
-members = [
-    "koicore_ffi",
-]
+members = ["crates/*"]
