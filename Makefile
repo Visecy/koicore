@@ -1,11 +1,14 @@
-clean:
-	cargo clean
+.PHONY: build
+build:
+	cargo build --release --workspace
 
-deps:
-	pip install maturin
-	
+.PHONY: test
+test:
+	cargo test
+
 ffi-test: clean
 	. scripts/ffi-test.sh
 
-py-test: clean
-	. scripts/py-test.sh
+.PHONY: clean
+clean:
+	cargo clean

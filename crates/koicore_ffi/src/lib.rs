@@ -1,3 +1,5 @@
+mod command;
+
 use std::cell::RefCell;
 use std::ffi::{CString, CStr};
 use std::os::raw::c_char;
