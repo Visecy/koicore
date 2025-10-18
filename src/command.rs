@@ -141,8 +141,8 @@ impl fmt::Display for Parameter {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Command {
-    name: String,
-    params: Vec<Parameter>,
+    pub name: String,
+    pub params: Vec<Parameter>,
 }
 
 impl Command {

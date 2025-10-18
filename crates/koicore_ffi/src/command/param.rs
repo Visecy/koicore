@@ -1,28 +1,10 @@
 use koicore::command::{Command, Parameter, Value, CompositeValue};
-use std::ffi::{c_char, CStr};
+use std::ffi::c_char;
+use std::ffi::CStr;
 use std::slice;
 use std::ptr;
 
-/// Opaque handle for KoiLang command
-#[repr(C)]
-pub struct KoiCommand {
-    _data: (),
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
-}
-
-/// Opaque handle for composite list parameter
-#[repr(C)]
-pub struct KoiCompositeList {
-    _data: (),
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
-}
-
-/// Opaque handle for composite dict parameter
-#[repr(C)]
-pub struct KoiCompositeDict {
-    _data: (),
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
-}
+use super::command::KoiCommand;
 
 /// Unified parameter type enumeration
 #[repr(C)]
@@ -35,184 +17,6 @@ pub enum KoiParamType {
     CompositeList = 5,
     CompositeDict = 6,
     Invalid = -1,
-}
-
-/// Get command name, caller provides buffer
-///
-/// # Arguments
-/// * `command` - Command object pointer
-/// * `buffer` - Buffer pointer provided by C caller
-/// * `buffer_size` - Buffer size
-///
-/// # Returns
-/// Returns actual length of command name (excluding null terminator)
-/// If buffer_size is insufficient, returns required buffer size (including null terminator)
-/// Returns 0 if parameters are invalid
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_GetName(
-    command: *mut KoiCommand,
-    buffer: *mut c_char,
-    buffer_size: usize,
-) -> usize {
-    if command.is_null() {
-        return 0;
-    }
-    
-    let command = &*(command as *mut Command);
-    let name = command.name();
-    let name_bytes = name.as_bytes();
-    let name_len = name_bytes.len();
-    
-    // Calculate required buffer size (including null terminator)
-    let required_size = name_len + 1;
-    
-    // If buffer is null or size is insufficient, return required size
-    if buffer.is_null() || buffer_size < required_size {
-        return required_size;
-    }
-    
-    // Copy name to buffer
-    let buffer_slice = slice::from_raw_parts_mut(buffer as *mut u8, buffer_size);
-    buffer_slice[..name_len].copy_from_slice(name_bytes);
-    buffer_slice[name_len] = 0; // null terminator
-    
-    required_size
-}
-
-/// Get command name length, always returns required size
-/// Caller can call this first to get size, then allocate buffer and call full version
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_GetNameLen(command: *mut KoiCommand) -> usize {
-    if command.is_null() {
-        return 0;
-    }
-    
-    let command = &*(command as *mut Command);
-    command.name().len() + 1 // including null terminator
-}
-
-/// Create a new command with specified name and parameters
-///
-/// # Arguments
-/// * `name` - Command name (null-terminated C string)
-/// * `param_count` - Number of parameters
-/// * `params` - Array of parameter pointers
-///
-/// # Returns
-/// Pointer to new command object, or null pointer on error
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_Create(
-    name: *const c_char,
-    param_count: usize,
-    params: *const *mut KoiCommand,
-) -> *mut KoiCommand {
-    if name.is_null() {
-        return ptr::null_mut();
-    }
-    
-    let name_str = match CStr::from_ptr(name).to_str() {
-        Ok(s) => s.to_string(),
-        Err(_) => return ptr::null_mut(),
-    };
-    
-    let mut rust_params = Vec::with_capacity(param_count);
-    
-    for i in 0..param_count {
-        let param_ptr = *params.add(i);
-        if param_ptr.is_null() {
-            return ptr::null_mut();
-        }
-        let param = Box::from_raw(param_ptr as *mut Parameter);
-        rust_params.push(*param);
-    }
-    
-    let command = Command::new(name_str, rust_params);
-    Box::into_raw(Box::new(command)) as *mut KoiCommand
-}
-
-/// Create a text command (@text)
-///
-/// # Arguments
-/// * `content` - Text content (null-terminated C string)
-///
-/// # Returns
-/// Pointer to new text command object
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_CreateText(content: *const c_char) -> *mut KoiCommand {
-    if content.is_null() {
-        return ptr::null_mut();
-    }
-    
-    let content_str = match CStr::from_ptr(content).to_str() {
-        Ok(s) => s.to_string(),
-        Err(_) => return ptr::null_mut(),
-    };
-    
-    let command = Command::new_text(content_str);
-    Box::into_raw(Box::new(command)) as *mut KoiCommand
-}
-
-/// Create an annotation command (@annotation)
-///
-/// # Arguments
-/// * `content` - Annotation content (null-terminated C string)
-///
-/// # Returns
-/// Pointer to new annotation command object
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_CreateAnnotation(content: *const c_char) -> *mut KoiCommand {
-    if content.is_null() {
-        return ptr::null_mut();
-    }
-    
-    let content_str = match CStr::from_ptr(content).to_str() {
-        Ok(s) => s.to_string(),
-        Err(_) => return ptr::null_mut(),
-    };
-    
-    let command = Command::new_annotation(content_str);
-    Box::into_raw(Box::new(command)) as *mut KoiCommand
-}
-
-/// Create a number command (@number)
-///
-/// # Arguments
-/// * `value` - Numeric value
-/// * `param_count` - Number of additional parameters
-/// * `params` - Array of additional parameter pointers
-///
-/// # Returns
-/// Pointer to new number command object, or null pointer on error
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_CreateNumber(
-    value: i64,
-    param_count: usize,
-    params: *const *mut KoiCommand,
-) -> *mut KoiCommand {
-    let mut rust_params = Vec::with_capacity(param_count);
-    
-    for i in 0..param_count {
-        let param_ptr = *params.add(i);
-        if param_ptr.is_null() {
-            return ptr::null_mut();
-        }
-        let param = Box::from_raw(param_ptr as *mut Parameter);
-        rust_params.push(*param);
-    }
-    
-    let command = Command::new_number(value, rust_params);
-    Box::into_raw(Box::new(command)) as *mut KoiCommand
-}
-
-/// Free a command object
-///
-/// # Arguments
-/// * `command` - Command object pointer to free
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_Free(command: *mut KoiCommand) {
-    if !command.is_null() {
-        drop(Box::from_raw(command as *mut Command));
-    }
 }
 
 /// Get number of parameters in command
@@ -539,88 +343,290 @@ pub unsafe extern "C" fn KoiCommand_IsNumberCommand(command: *mut KoiCommand) ->
     (command.name() == "@number") as i32
 }
 
-/// Get composite list parameter from command
+/// Add a new integer parameter to command
 ///
 /// # Arguments
 /// * `command` - Command object pointer
-/// * `index` - Parameter index
+/// * `value` - Integer value
 ///
 /// # Returns
-/// Pointer to composite list parameter, or null on error
+/// 1 on success, 0 on error
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_GetCompositeList(
+pub unsafe extern "C" fn KoiCommand_AddIntParameter(
     command: *mut KoiCommand,
-    index: usize,
-) -> *mut KoiCompositeList {
+    value: i64,
+) -> i32 {
     if command.is_null() {
-        return ptr::null_mut();
-    }
-    
-    let command = &*(command as *mut Command);
-    let params = command.params();
-    
-    if index >= params.len() {
-        return ptr::null_mut();
-    }
-    
-    match &params[index] {
-        Parameter::Composite(_, CompositeValue::List(_)) => {
-            // Cast the parameter reference to the opaque list type
-            &params[index] as *const Parameter as *mut KoiCompositeList
-        }
-        _ => ptr::null_mut()
-    }
-}
-
-/// Get composite dict parameter from command
-///
-/// # Arguments
-/// * `command` - Command object pointer
-/// * `index` - Parameter index
-///
-/// # Returns
-/// Pointer to composite dict parameter, or null on error
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_GetCompositeDict(
-    command: *mut KoiCommand,
-    index: usize,
-) -> *mut KoiCompositeDict {
-    if command.is_null() {
-        return ptr::null_mut();
-    }
-    
-    let command = &*(command as *mut Command);
-    let params = command.params();
-    
-    if index >= params.len() {
-        return ptr::null_mut();
-    }
-    
-    match &params[index] {
-        Parameter::Composite(_, CompositeValue::Dict(_)) => {
-            // Cast the parameter reference to the opaque dict type
-            &params[index] as *const Parameter as *mut KoiCompositeDict
-        }
-        _ => ptr::null_mut()
-    }
-}
-
-/// Get composite list parameter length
-///
-/// # Arguments
-/// * `list` - Composite list parameter pointer
-///
-/// # Returns
-/// Number of elements in the list, or 0 on error
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCompositeList_GetLength(list: *mut KoiCompositeList) -> usize {
-    if list.is_null() {
         return 0;
     }
     
-    let param = &*(list as *const Parameter);
-    match param {
-        Parameter::Composite(_, CompositeValue::List(values)) => values.len(),
+    let command = &mut *(command as *mut Command);
+    command.params.push(value.into());
+    1
+}
+
+/// Add a new float parameter to command
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `value` - Float value
+///
+/// # Returns
+/// 1 on success, 0 on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_AddFloatParameter(
+    command: *mut KoiCommand,
+    value: f64,
+) -> i32 {
+    if command.is_null() {
+        return 0;
+    }
+    
+    let command = &mut *(command as *mut Command);
+    command.params.push(value.into());
+    1
+}
+
+/// Add a new string parameter to command
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `value` - String value (null-terminated C string)
+///
+/// # Returns
+/// 1 on success, 0 on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_AddStringParameter(
+    command: *mut KoiCommand,
+    value: *const c_char,
+) -> i32 {
+    if command.is_null() || value.is_null() {
+        return 0;
+    }
+    
+    let value_str = match CStr::from_ptr(value).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+    
+    let command = &mut *(command as *mut Command);
+    command.params.push(Value::String(value_str).into());
+    1
+}
+
+/// Add a new literal parameter to command
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `value` - Literal value (null-terminated C string)
+///
+/// # Returns
+/// 1 on success, 0 on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_AddLiteralParameter(
+    command: *mut KoiCommand,
+    value: *const c_char,
+) -> i32 {
+    if command.is_null() || value.is_null() {
+        return 0;
+    }
+    
+    let value_str = match CStr::from_ptr(value).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+    
+    let command = &mut *(command as *mut Command);
+    command.params.push(Value::Literal(value_str).into());
+    1
+}
+
+/// Remove parameter from command by index
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index to remove
+///
+/// # Returns
+/// 1 on success, 0 on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_RemoveParameter(
+    command: *mut KoiCommand,
+    index: usize,
+) -> i32 {
+    if command.is_null() {
+        return 0;
+    }
+    
+    let command = &mut *(command as *mut Command);
+    command.params.remove(index);
+    1
+}
+
+/// Clear all parameters from command
+///
+/// # Arguments
+/// * `command` - Command object pointer
+///
+/// # Returns
+/// 1 on success, 0 on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_ClearParameters(command: *mut KoiCommand) -> i32 {
+    if command.is_null() {
+        return 0;
+    }
+    
+    let command = &mut *(command as *mut Command);
+    command.params.clear();
+    1
+}
+
+/// Modify integer parameter value
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index
+/// * `value` - New integer value
+///
+/// # Returns
+/// 1 on success, 0 on error or type mismatch
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_ModifyIntParameter(
+    command: *mut KoiCommand,
+    index: usize,
+    value: i64,
+) -> i32 {
+    if command.is_null() {
+        return 0;
+    }
+    
+    let command = &mut *(command as *mut Command);
+    let params = &mut command.params;
+    
+    if index >= params.len() {
+        return 0;
+    }
+    
+    match &mut params[index] {
+        Parameter::Basic(Value::Int(old_value)) => {
+            *old_value = value;
+            1
+        }
+        _ => 0,
+    }
+}
+
+/// Modify float parameter value
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index
+/// * `value` - New float value
+///
+/// # Returns
+/// 1 on success, 0 on error or type mismatch
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_ModifyFloatParameter(
+    command: *mut KoiCommand,
+    index: usize,
+    value: f64,
+) -> i32 {
+    if command.is_null() {
+        return 0;
+    }
+    
+    let command = &mut *(command as *mut Command);
+    let params = &mut command.params;
+    
+    if index >= params.len() {
+        return 0;
+    }
+    
+    match &mut params[index] {
+        Parameter::Basic(Value::Float(old_value)) => {
+            *old_value = value;
+            1
+        }
+        _ => 0,
+    }
+}
+
+/// Modify string parameter value
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index
+/// * `value` - New string value (null-terminated C string)
+///
+/// # Returns
+/// 1 on success, 0 on error or type mismatch
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_ModifyStringParameter(
+    command: *mut KoiCommand,
+    index: usize,
+    value: *const c_char,
+) -> i32 {
+    if command.is_null() || value.is_null() {
+        return 0;
+    }
+    
+    let value_str = match CStr::from_ptr(value).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+    
+    let command = &mut *(command as *mut Command);
+    let params = &mut command.params;
+    
+    if index >= params.len() {
+        return 0;
+    }
+    
+    match &mut params[index] {
+        Parameter::Basic(Value::String(old_value)) => {
+            *old_value = value_str;
+            1
+        }
+        _ => 0,
+    }
+}
+
+/// Modify literal parameter value
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index
+/// * `value` - New literal value (null-terminated C string)
+///
+/// # Returns
+/// 1 on success, 0 on error or type mismatch
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_ModifyLiteralParameter(
+    command: *mut KoiCommand,
+    index: usize,
+    value: *const c_char,
+) -> i32 {
+    if command.is_null() || value.is_null() {
+        return 0;
+    }
+    
+    let value_str = match CStr::from_ptr(value).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+    
+    let command = &mut *(command as *mut Command);
+    let params = &mut command.params;
+    
+    if index >= params.len() {
+        return 0;
+    }
+    
+    match &mut params[index] {
+        Parameter::Basic(Value::Literal(old_value)) => {
+            *old_value = value_str;
+            1
+        }
         _ => 0,
     }
 }
