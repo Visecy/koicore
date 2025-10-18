@@ -51,7 +51,7 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeList(
 /// * `list` - Composite list parameter pointer
 ///
 /// # Returns
-/// Number of elements in the list, or 0 on error
+/// Number of Values in the list, or 0 on error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCompositeList_GetLength(list: *mut KoiCompositeList) -> usize {
     if list.is_null() {
@@ -65,16 +65,16 @@ pub unsafe extern "C" fn KoiCompositeList_GetLength(list: *mut KoiCompositeList)
     }
 }
 
-/// Get element type from composite list by index
+/// Get Value type from composite list by index
 ///
 /// # Arguments
 /// * `list` - Composite list parameter pointer
-/// * `index` - Element index
+/// * `index` - Value index
 ///
 /// # Returns
-/// Parameter type of the element, or KoiParamType::Invalid on error
+/// Parameter type of the Value, or KoiParamType::Invalid on error
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCompositeList_GetElementType(
+pub unsafe extern "C" fn KoiCompositeList_GetValueType(
     list: *mut KoiCompositeList,
     index: usize,
 ) -> i32 {
@@ -100,17 +100,17 @@ pub unsafe extern "C" fn KoiCompositeList_GetElementType(
     }
 }
 
-/// Get integer element from composite list by index
+/// Get integer Value from composite list by index
 ///
 /// # Arguments
 /// * `list` - Composite list parameter pointer
-/// * `index` - Element index
+/// * `index` - Value index
 /// * `out_value` - Pointer to store integer value
 ///
 /// # Returns
 /// 1 on success, 0 on error or type mismatch
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCompositeList_GetIntElement(
+pub unsafe extern "C" fn KoiCompositeList_GetIntValue(
     list: *mut KoiCompositeList,
     index: usize,
     out_value: *mut i64,
@@ -138,17 +138,17 @@ pub unsafe extern "C" fn KoiCompositeList_GetIntElement(
     }
 }
 
-/// Get float element from composite list by index
+/// Get float Value from composite list by index
 ///
 /// # Arguments
 /// * `list` - Composite list parameter pointer
-/// * `index` - Element index
+/// * `index` - Value index
 /// * `out_value` - Pointer to store float value
 ///
 /// # Returns
 /// 1 on success, 0 on error or type mismatch
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCompositeList_GetFloatElement(
+pub unsafe extern "C" fn KoiCompositeList_GetFloatValue(
     list: *mut KoiCompositeList,
     index: usize,
     out_value: *mut f64,
@@ -176,17 +176,18 @@ pub unsafe extern "C" fn KoiCompositeList_GetFloatElement(
     }
 }
 
-/// Get string element from composite list by index
+/// Get string Value from composite list by index
 ///
 /// # Arguments
 /// * `list` - Composite list parameter pointer
-/// * `index` - Element index
+/// * `index` - Value index
 /// * `out_value` - Pointer to store string value
 ///
 /// # Returns
-/// 1 on success, 0 on error or type mismatch
+/// Actual string length (excluding null terminator), or required buffer size if insufficient
+/// Returns 0 on error or type mismatch
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCompositeList_GetStringElement(
+pub unsafe extern "C" fn KoiCompositeList_GetStringValue(
     list: *mut KoiCompositeList,
     index: usize,
     out_value: *mut c_char,
@@ -221,6 +222,39 @@ pub unsafe extern "C" fn KoiCompositeList_GetStringElement(
             buffer_slice[value_len] = 0;
             
             required_size
+        }
+        _ => 0,
+    }
+}
+
+/// Get string Value length from composite list by index
+///
+/// # Arguments
+/// * `list` - Composite list parameter pointer
+/// * `index` - Value index
+///
+/// # Returns
+/// Required buffer size (including null terminator), or 0 on error or type mismatch
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeList_GetStringValueLen(
+    list: *mut KoiCompositeList,
+    index: usize,
+) -> usize {
+    if list.is_null() {
+        return 0;
+    }
+    
+    let param = &*(list as *const Parameter);
+    match param {
+        Parameter::Composite(_, CompositeValue::List(values)) => {
+            if index >= values.len() {
+                return 0;
+            }
+            
+            match &values[index] {
+                Value::String(value) => value.len() + 1,
+                _ => 0,
+            }
         }
         _ => 0,
     }

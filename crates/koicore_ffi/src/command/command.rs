@@ -72,7 +72,7 @@ pub unsafe extern "C" fn KoiCommand_GetNameLen(command: *mut KoiCommand) -> usiz
 /// # Returns
 /// Pointer to new command object, or null pointer on error
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_Create(
+pub unsafe extern "C" fn KoiCommand_New(
     name: *const c_char,
 ) -> *mut KoiCommand {
     if name.is_null() {
@@ -96,7 +96,7 @@ pub unsafe extern "C" fn KoiCommand_Create(
 /// # Returns
 /// Pointer to new text command object
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_CreateText(content: *const c_char) -> *mut KoiCommand {
+pub unsafe extern "C" fn KoiCommand_NewText(content: *const c_char) -> *mut KoiCommand {
     if content.is_null() {
         return ptr::null_mut();
     }
@@ -118,7 +118,7 @@ pub unsafe extern "C" fn KoiCommand_CreateText(content: *const c_char) -> *mut K
 /// # Returns
 /// Pointer to new annotation command object
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_CreateAnnotation(content: *const c_char) -> *mut KoiCommand {
+pub unsafe extern "C" fn KoiCommand_NewAnnotation(content: *const c_char) -> *mut KoiCommand {
     if content.is_null() {
         return ptr::null_mut();
     }
@@ -140,7 +140,7 @@ pub unsafe extern "C" fn KoiCommand_CreateAnnotation(content: *const c_char) -> 
 /// # Returns
 /// Pointer to new number command object, or null pointer on error
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_CreateNumber(
+pub unsafe extern "C" fn KoiCommand_NewNumber(
     value: i64,
 ) -> *mut KoiCommand {
     let command = Command::new_number(value, Vec::new());
@@ -165,24 +165,24 @@ pub unsafe extern "C" fn KoiCommand_Free(command: *mut KoiCommand) {
 /// * `name` - New command name (null-terminated C string)
 ///
 /// # Returns
-/// 1 on success, 0 on error
+/// 0 on success, non-zero on error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_SetName(
     command: *mut KoiCommand,
     name: *const c_char,
 ) -> i32 {
     if command.is_null() || name.is_null() {
-        return 0;
+        return -1;
     }
     
     let name_str = match CStr::from_ptr(name).to_str() {
         Ok(s) => s.to_string(),
-        Err(_) => return 0,
+        Err(_) => return -1,
     };
     
     let command = &mut *(command as *mut Command);
     command.name = name_str;
-    1
+    0
 }
 
 /// Clone a command object

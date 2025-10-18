@@ -22,6 +22,7 @@ use traceback::NomErrorNode;
 
 /// Configuration for the line processor
 #[repr(C)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParserConfig {
     /// The command threshold (number of # required for commands)
     pub command_threshold: usize,

@@ -4,7 +4,7 @@ fn main() {
     cbindgen::Builder::new()
         .with_crate(crate_dir)
         .with_language(cbindgen::Language::C)
-        .with_include_guard("__KOICORE_H__")
+        .with_include_guard("_INCLUDE_KOICORE_")
         .with_namespace("koicore")
         .generate()
         .expect("Unable to generate bindings")

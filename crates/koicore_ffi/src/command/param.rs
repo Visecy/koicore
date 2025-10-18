@@ -2,7 +2,6 @@ use koicore::command::{Command, Parameter, Value, CompositeValue};
 use std::ffi::c_char;
 use std::ffi::CStr;
 use std::slice;
-use std::ptr;
 
 use super::command::KoiCommand;
 
@@ -83,7 +82,7 @@ pub unsafe extern "C" fn KoiCommand_GetParamType(
 /// * `out_value` - Pointer to store integer value
 ///
 /// # Returns
-/// 1 on success, 0 on error or type mismatch
+/// 0 on success, non-zero on error or type mismatch
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_GetIntParam(
     command: *mut KoiCommand,
@@ -91,22 +90,22 @@ pub unsafe extern "C" fn KoiCommand_GetIntParam(
     out_value: *mut i64,
 ) -> i32 {
     if command.is_null() || out_value.is_null() {
-        return 0;
+        return -1;
     }
     
     let command = &*(command as *mut Command);
     let params = command.params();
     
     if index >= params.len() {
-        return 0;
+        return -2;
     }
     
     match &params[index] {
         Parameter::Basic(Value::Int(value)) => {
             *out_value = *value;
-            1
+            0
         }
-        _ => 0,
+        _ => -3,
     }
 }
 
@@ -118,7 +117,7 @@ pub unsafe extern "C" fn KoiCommand_GetIntParam(
 /// * `out_value` - Pointer to store float value
 ///
 /// # Returns
-/// 1 on success, 0 on error or type mismatch
+/// 0 on success, non-zero on error or type mismatch
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_GetFloatParam(
     command: *mut KoiCommand,
@@ -126,22 +125,22 @@ pub unsafe extern "C" fn KoiCommand_GetFloatParam(
     out_value: *mut f64,
 ) -> i32 {
     if command.is_null() || out_value.is_null() {
-        return 0;
+        return -1;
     }
     
     let command = &*(command as *mut Command);
     let params = command.params();
     
     if index >= params.len() {
-        return 0;
+        return -2;
     }
     
     match &params[index] {
         Parameter::Basic(Value::Float(value)) => {
             *out_value = *value;
-            1
+            0
         }
-        _ => 0,
+        _ => -3,
     }
 }
 
@@ -194,6 +193,36 @@ pub unsafe extern "C" fn KoiCommand_GetStringParam(
     required_size
 }
 
+/// Get string parameter length
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index
+///
+/// # Returns
+/// Required buffer size (including null terminator), or 0 on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_GetStringParamLen(
+    command: *mut KoiCommand,
+    index: usize,
+) -> usize {
+    if command.is_null() {
+        return 0;
+    }
+    
+    let command = &*(command as *mut Command);
+    let params = command.params();
+    
+    if index >= params.len() {
+        return 0;
+    }
+    
+    match &params[index] {
+        Parameter::Basic(Value::String(value)) => value.len() + 1,
+        _ => 0,
+    }
+}
+
 /// Get literal value from basic parameter into provided buffer
 ///
 /// # Arguments
@@ -243,6 +272,36 @@ pub unsafe extern "C" fn KoiCommand_GetLiteralParam(
     required_size
 }
 
+/// Get literal parameter length
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index
+///
+/// # Returns
+/// Required buffer size (including null terminator), or 0 on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_GetLiteralParamLen(
+    command: *mut KoiCommand,
+    index: usize,
+) -> usize {
+    if command.is_null() {
+        return 0;
+    }
+    
+    let command = &*(command as *mut Command);
+    let params = command.params();
+    
+    if index >= params.len() {
+        return 0;
+    }
+    
+    match &params[index] {
+        Parameter::Basic(Value::Literal(value)) => value.len() + 1,
+        _ => 0,
+    }
+}
+
 /// Get composite parameter name into provided buffer
 ///
 /// # Arguments
@@ -290,6 +349,36 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeParamName(
     buffer_slice[name_len] = 0;
     
     required_size
+}
+
+/// Get composite parameter name length
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index
+///
+/// # Returns
+/// Required buffer size (including null terminator), or 0 on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_GetCompositeParamNameLen(
+    command: *mut KoiCommand,
+    index: usize,
+) -> usize {
+    if command.is_null() {
+        return 0;
+    }
+    
+    let command = &*(command as *mut Command);
+    let params = command.params();
+    
+    if index >= params.len() {
+        return 0;
+    }
+    
+    match &params[index] {
+        Parameter::Composite(name, _) => name.len() + 1,
+        _ => 0,
+    }
 }
 
 /// Check if command is a text command (@text)
@@ -350,19 +439,19 @@ pub unsafe extern "C" fn KoiCommand_IsNumberCommand(command: *mut KoiCommand) ->
 /// * `value` - Integer value
 ///
 /// # Returns
-/// 1 on success, 0 on error
+/// 0 on success, non-zero on error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_AddIntParameter(
     command: *mut KoiCommand,
     value: i64,
 ) -> i32 {
     if command.is_null() {
-        return 0;
+        return -1;
     }
     
     let command = &mut *(command as *mut Command);
     command.params.push(value.into());
-    1
+    0
 }
 
 /// Add a new float parameter to command
@@ -372,19 +461,19 @@ pub unsafe extern "C" fn KoiCommand_AddIntParameter(
 /// * `value` - Float value
 ///
 /// # Returns
-/// 1 on success, 0 on error
+/// 0 on success, non-zero on error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_AddFloatParameter(
     command: *mut KoiCommand,
     value: f64,
 ) -> i32 {
     if command.is_null() {
-        return 0;
+        return -1;
     }
     
     let command = &mut *(command as *mut Command);
     command.params.push(value.into());
-    1
+    0
 }
 
 /// Add a new string parameter to command
@@ -394,24 +483,24 @@ pub unsafe extern "C" fn KoiCommand_AddFloatParameter(
 /// * `value` - String value (null-terminated C string)
 ///
 /// # Returns
-/// 1 on success, 0 on error
+/// 0 on success, non-zero on error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_AddStringParameter(
     command: *mut KoiCommand,
     value: *const c_char,
 ) -> i32 {
     if command.is_null() || value.is_null() {
-        return 0;
+        return -1;
     }
     
     let value_str = match CStr::from_ptr(value).to_str() {
         Ok(s) => s.to_string(),
-        Err(_) => return 0,
+        Err(_) => return -2,
     };
     
     let command = &mut *(command as *mut Command);
     command.params.push(Value::String(value_str).into());
-    1
+    0
 }
 
 /// Add a new literal parameter to command
@@ -421,24 +510,24 @@ pub unsafe extern "C" fn KoiCommand_AddStringParameter(
 /// * `value` - Literal value (null-terminated C string)
 ///
 /// # Returns
-/// 1 on success, 0 on error
+/// 0 on success, non-zero on error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_AddLiteralParameter(
     command: *mut KoiCommand,
     value: *const c_char,
 ) -> i32 {
     if command.is_null() || value.is_null() {
-        return 0;
+        return -1;
     }
     
     let value_str = match CStr::from_ptr(value).to_str() {
         Ok(s) => s.to_string(),
-        Err(_) => return 0,
+        Err(_) => return -2,
     };
     
     let command = &mut *(command as *mut Command);
     command.params.push(Value::Literal(value_str).into());
-    1
+    0
 }
 
 /// Remove parameter from command by index
@@ -448,19 +537,19 @@ pub unsafe extern "C" fn KoiCommand_AddLiteralParameter(
 /// * `index` - Parameter index to remove
 ///
 /// # Returns
-/// 1 on success, 0 on error
+/// 0 on success, non-zero on error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_RemoveParameter(
     command: *mut KoiCommand,
     index: usize,
 ) -> i32 {
     if command.is_null() {
-        return 0;
+        return -1;
     }
     
     let command = &mut *(command as *mut Command);
     command.params.remove(index);
-    1
+    0
 }
 
 /// Clear all parameters from command
@@ -469,16 +558,16 @@ pub unsafe extern "C" fn KoiCommand_RemoveParameter(
 /// * `command` - Command object pointer
 ///
 /// # Returns
-/// 1 on success, 0 on error
+/// 0 on success, non-zero on error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_ClearParameters(command: *mut KoiCommand) -> i32 {
     if command.is_null() {
-        return 0;
+        return -1;
     }
     
     let command = &mut *(command as *mut Command);
     command.params.clear();
-    1
+    0
 }
 
 /// Modify integer parameter value
@@ -489,30 +578,30 @@ pub unsafe extern "C" fn KoiCommand_ClearParameters(command: *mut KoiCommand) ->
 /// * `value` - New integer value
 ///
 /// # Returns
-/// 1 on success, 0 on error or type mismatch
+/// 0 on success, non-zero on error or type mismatch
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_ModifyIntParameter(
+pub unsafe extern "C" fn KoiCommand_SetIntParameter(
     command: *mut KoiCommand,
     index: usize,
     value: i64,
 ) -> i32 {
     if command.is_null() {
-        return 0;
+        return -1;
     }
     
     let command = &mut *(command as *mut Command);
     let params = &mut command.params;
     
     if index >= params.len() {
-        return 0;
+        return -2;
     }
     
     match &mut params[index] {
         Parameter::Basic(Value::Int(old_value)) => {
             *old_value = value;
-            1
+            0
         }
-        _ => 0,
+        _ => -3,
     }
 }
 
@@ -524,30 +613,30 @@ pub unsafe extern "C" fn KoiCommand_ModifyIntParameter(
 /// * `value` - New float value
 ///
 /// # Returns
-/// 1 on success, 0 on error or type mismatch
+/// 0 on success, non-zero on error or type mismatch
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_ModifyFloatParameter(
+pub unsafe extern "C" fn KoiCommand_SetFloatParameter(
     command: *mut KoiCommand,
     index: usize,
     value: f64,
 ) -> i32 {
     if command.is_null() {
-        return 0;
+        return -1;
     }
     
     let command = &mut *(command as *mut Command);
     let params = &mut command.params;
     
     if index >= params.len() {
-        return 0;
+        return -2;
     }
     
     match &mut params[index] {
         Parameter::Basic(Value::Float(old_value)) => {
             *old_value = value;
-            1
+            0
         }
-        _ => 0,
+        _ => -3,
     }
 }
 
@@ -559,35 +648,35 @@ pub unsafe extern "C" fn KoiCommand_ModifyFloatParameter(
 /// * `value` - New string value (null-terminated C string)
 ///
 /// # Returns
-/// 1 on success, 0 on error or type mismatch
+/// 0 on success, non-zero on error or type mismatch
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_ModifyStringParameter(
+pub unsafe extern "C" fn KoiCommand_SetStringParameter(
     command: *mut KoiCommand,
     index: usize,
     value: *const c_char,
 ) -> i32 {
     if command.is_null() || value.is_null() {
-        return 0;
+        return -1;
     }
     
     let value_str = match CStr::from_ptr(value).to_str() {
         Ok(s) => s.to_string(),
-        Err(_) => return 0,
+        Err(_) => return -2,
     };
     
     let command = &mut *(command as *mut Command);
     let params = &mut command.params;
     
     if index >= params.len() {
-        return 0;
+        return -3;
     }
     
     match &mut params[index] {
         Parameter::Basic(Value::String(old_value)) => {
             *old_value = value_str;
-            1
+            0
         }
-        _ => 0,
+        _ => -4,
     }
 }
 
@@ -599,34 +688,34 @@ pub unsafe extern "C" fn KoiCommand_ModifyStringParameter(
 /// * `value` - New literal value (null-terminated C string)
 ///
 /// # Returns
-/// 1 on success, 0 on error or type mismatch
+/// 0 on success, non-zero on error or type mismatch
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_ModifyLiteralParameter(
+pub unsafe extern "C" fn KoiCommand_SetLiteralParameter(
     command: *mut KoiCommand,
     index: usize,
     value: *const c_char,
 ) -> i32 {
     if command.is_null() || value.is_null() {
-        return 0;
+        return -1;
     }
     
     let value_str = match CStr::from_ptr(value).to_str() {
         Ok(s) => s.to_string(),
-        Err(_) => return 0,
+        Err(_) => return -2,
     };
     
     let command = &mut *(command as *mut Command);
     let params = &mut command.params;
     
     if index >= params.len() {
-        return 0;
+        return -3;
     }
     
     match &mut params[index] {
         Parameter::Basic(Value::Literal(old_value)) => {
             *old_value = value_str;
-            1
+            0
         }
-        _ => 0,
+        _ => -4,
     }
 }

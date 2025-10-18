@@ -384,6 +384,7 @@ name = "koicore_ffi"
 version = "0.1.0"
 dependencies = [
  "cbindgen",
+ "encoding_rs",
  "koicore",
 ]
 

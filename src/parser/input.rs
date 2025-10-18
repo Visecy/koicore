@@ -40,6 +40,16 @@ pub trait TextInputSource {
     }
 }
 
+impl TextInputSource for Box<dyn TextInputSource> {
+    fn next_line(&mut self) -> io::Result<Option<String>> {
+        self.as_mut().next_line()
+    }
+
+    fn source_name(&self) -> &str {
+        self.as_ref().source_name()
+    }
+}
+
 /// Input source that reads from a file with encoding support
 pub struct FileInputSource {
     reader: DecodeBufReader<File>,

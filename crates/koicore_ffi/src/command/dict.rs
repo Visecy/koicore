@@ -111,6 +111,36 @@ pub unsafe extern "C" fn KoiCompositeDict_GetKey(
     }
 }
 
+/// Get dict key length by index
+///
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+/// * `index` - Entry index
+///
+/// # Returns
+/// Required buffer size (including null terminator), or 0 on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_GetKeyLen(
+    dict: *mut KoiCompositeDict,
+    index: usize,
+) -> usize {
+    if dict.is_null() {
+        return 0;
+    }
+    
+    let param = &*(dict as *const Parameter);
+    match param {
+        Parameter::Composite(_, CompositeValue::Dict(entries)) => {
+            if index >= entries.len() {
+                return 0;
+            }
+            
+            entries[index].0.len() + 1
+        }
+        _ => 0,
+    }
+}
+
 /// Get integer value from dict by key
 ///
 /// # Arguments
@@ -202,6 +232,8 @@ pub unsafe extern "C" fn KoiCompositeDict_GetFloatValue(
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
 /// * `key` - Key to search for (null-terminated C string)
+/// * `buffer` - Buffer for string output
+/// * `buffer_size` - Buffer size
 ///
 /// # Returns
 /// Actual string length (excluding null terminator), or required buffer size if insufficient
@@ -236,7 +268,52 @@ pub unsafe extern "C" fn KoiCompositeDict_GetStringValue(
                             if buffer.is_null() || buffer_size < required_size {
                                 return required_size;
                             }
+                            
+                            let buffer_slice = slice::from_raw_parts_mut(buffer as *mut u8, buffer_size);
+                            buffer_slice[..value_len].copy_from_slice(value_bytes);
+                            buffer_slice[value_len] = 0;
+                            
+                            return required_size;
                         }
+                        _ => return 0,
+                    }
+                }
+            }
+            0
+        }
+        _ => 0,
+    }
+}
+
+/// Get string value length from dict by key
+///
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+/// * `key` - Key to search for (null-terminated C string)
+///
+/// # Returns
+/// Required buffer size (including null terminator), or 0 on error or type mismatch
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_GetStringValueLen(
+    dict: *mut KoiCompositeDict,
+    key: *const c_char,
+) -> usize {
+    if dict.is_null() || key.is_null() {
+        return 0;
+    }
+    
+    let key_str = match CStr::from_ptr(key).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return 0,
+    };
+    
+    let param = &*(dict as *const Parameter);
+    match param {
+        Parameter::Composite(_, CompositeValue::Dict(entries)) => {
+            for (k, v) in entries {
+                if *k == key_str {
+                    match v {
+                        Value::String(value) => return value.len() + 1,
                         _ => return 0,
                     }
                 }
