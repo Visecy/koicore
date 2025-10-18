@@ -27,7 +27,7 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeDict(
         return ptr::null_mut();
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
     
     if index >= params.len() {
@@ -56,7 +56,7 @@ pub unsafe extern "C" fn KoiCompositeDict_GetLength(dict: *mut KoiCompositeDict)
         return 0;
     }
     
-    let param = &*(dict as *const Parameter);
+    let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => entries.len(),
         _ => 0,
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn KoiCompositeDict_GetKey(
         return 0;
     }
     
-    let param = &*(dict as *const Parameter);
+    let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
             if index >= entries.len() {
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn KoiCompositeDict_GetKey(
                 return required_size;
             }
             
-            let buffer_slice = slice::from_raw_parts_mut(buffer as *mut u8, buffer_size);
+            let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
     buffer_slice[..key_len].copy_from_slice(key_bytes);
     buffer_slice[key_len] = 0;
     
@@ -128,7 +128,7 @@ pub unsafe extern "C" fn KoiCompositeDict_GetKeyLen(
         return 0;
     }
     
-    let param = &*(dict as *const Parameter);
+    let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
             if index >= entries.len() {
@@ -159,19 +159,19 @@ pub unsafe extern "C" fn KoiCompositeDict_GetIntValue(
         return 0;
     }
     
-    let key_str = match CStr::from_ptr(key).to_str() {
+    let key_str = match unsafe { CStr::from_ptr(key) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return 0,
     };
     
-    let param = &*(dict as *const Parameter);
+    let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
             for (k, v) in entries {
                 if *k == key_str {
                     match v {
                         Value::Int(value) => {
-                            *out_value = *value;
+                            unsafe { *out_value = *value };
                             return 1;
                         }
                         _ => return 0,
@@ -202,19 +202,19 @@ pub unsafe extern "C" fn KoiCompositeDict_GetFloatValue(
         return 0;
     }
     
-    let key_str = match CStr::from_ptr(key).to_str() {
+    let key_str = match unsafe { CStr::from_ptr(key) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return 0,
     };
     
-    let param = &*(dict as *const Parameter);
+    let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
             for (k, v) in entries {
                 if *k == key_str {
                     match v {
                         Value::Float(value) => {
-                            *out_value = *value;
+                            unsafe { *out_value = *value };
                             return 1;
                         }
                         _ => return 0,
@@ -249,12 +249,12 @@ pub unsafe extern "C" fn KoiCompositeDict_GetStringValue(
         return 0;
     }
     
-    let key_str = match CStr::from_ptr(key).to_str() {
+    let key_str = match unsafe { CStr::from_ptr(key) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return 0,
     };
     
-    let param = &*(dict as *const Parameter);
+    let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
             for (k, v) in entries {
@@ -269,7 +269,7 @@ pub unsafe extern "C" fn KoiCompositeDict_GetStringValue(
                                 return required_size;
                             }
                             
-                            let buffer_slice = slice::from_raw_parts_mut(buffer as *mut u8, buffer_size);
+                            let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
                             buffer_slice[..value_len].copy_from_slice(value_bytes);
                             buffer_slice[value_len] = 0;
                             
@@ -302,12 +302,12 @@ pub unsafe extern "C" fn KoiCompositeDict_GetStringValueLen(
         return 0;
     }
     
-    let key_str = match CStr::from_ptr(key).to_str() {
+    let key_str = match unsafe { CStr::from_ptr(key) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return 0,
     };
     
-    let param = &*(dict as *const Parameter);
+    let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
             for (k, v) in entries {

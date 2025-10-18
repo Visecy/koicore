@@ -10,11 +10,10 @@ use super::command::KoiCommand;
 pub enum KoiParamType {
     BasicInt = 0,
     BasicFloat = 1,
-    BasicLiteral = 2,
-    BasicString = 3,
-    CompositeSingle = 4,
-    CompositeList = 5,
-    CompositeDict = 6,
+    BasicString = 2,  // Merged Literal and String into single String type
+    CompositeSingle = 3,
+    CompositeList = 4,
+    CompositeDict = 5,
     Invalid = -1,
 }
 
@@ -31,7 +30,7 @@ pub unsafe extern "C" fn KoiCommand_GetParamCount(command: *mut KoiCommand) -> u
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     command.params().len()
 }
 
@@ -52,7 +51,7 @@ pub unsafe extern "C" fn KoiCommand_GetParamType(
         return KoiParamType::Invalid as i32;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
     
     if index >= params.len() {
@@ -63,7 +62,6 @@ pub unsafe extern "C" fn KoiCommand_GetParamType(
         Parameter::Basic(value) => match value {
             Value::Int(_) => KoiParamType::BasicInt as i32,
             Value::Float(_) => KoiParamType::BasicFloat as i32,
-            Value::Literal(_) => KoiParamType::BasicLiteral as i32,
             Value::String(_) => KoiParamType::BasicString as i32,
         },
         Parameter::Composite(_, composite) => match composite {
@@ -93,7 +91,7 @@ pub unsafe extern "C" fn KoiCommand_GetIntParam(
         return -1;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
     
     if index >= params.len() {
@@ -102,7 +100,7 @@ pub unsafe extern "C" fn KoiCommand_GetIntParam(
     
     match &params[index] {
         Parameter::Basic(Value::Int(value)) => {
-            *out_value = *value;
+            unsafe { *out_value = *value; }
             0
         }
         _ => -3,
@@ -128,7 +126,7 @@ pub unsafe extern "C" fn KoiCommand_GetFloatParam(
         return -1;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
     
     if index >= params.len() {
@@ -137,7 +135,7 @@ pub unsafe extern "C" fn KoiCommand_GetFloatParam(
     
     match &params[index] {
         Parameter::Basic(Value::Float(value)) => {
-            *out_value = *value;
+            unsafe { *out_value = *value; }
             0
         }
         _ => -3,
@@ -166,7 +164,7 @@ pub unsafe extern "C" fn KoiCommand_GetStringParam(
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
     
     if index >= params.len() {
@@ -186,7 +184,7 @@ pub unsafe extern "C" fn KoiCommand_GetStringParam(
         return required_size;
     }
     
-    let buffer_slice = slice::from_raw_parts_mut(buffer as *mut u8, buffer_size);
+    let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
     buffer_slice[..value_len].copy_from_slice(value_bytes);
     buffer_slice[value_len] = 0;
     
@@ -210,7 +208,7 @@ pub unsafe extern "C" fn KoiCommand_GetStringParamLen(
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
     
     if index >= params.len() {
@@ -223,84 +221,7 @@ pub unsafe extern "C" fn KoiCommand_GetStringParamLen(
     }
 }
 
-/// Get literal value from basic parameter into provided buffer
-///
-/// # Arguments
-/// * `command` - Command object pointer
-/// * `index` - Parameter index
-/// * `buffer` - Buffer for literal output
-/// * `buffer_size` - Buffer size
-///
-/// # Returns
-/// Actual literal length (excluding null terminator), or required buffer size if insufficient
-/// Returns 0 on error or type mismatch
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_GetLiteralParam(
-    command: *mut KoiCommand,
-    index: usize,
-    buffer: *mut c_char,
-    buffer_size: usize,
-) -> usize {
-    if command.is_null() {
-        return 0;
-    }
-    
-    let command = &*(command as *mut Command);
-    let params = command.params();
-    
-    if index >= params.len() {
-        return 0;
-    }
-    
-    let value_str = match &params[index] {
-        Parameter::Basic(Value::Literal(value)) => value,
-        _ => return 0,
-    };
-    
-    let value_bytes = value_str.as_bytes();
-    let value_len = value_bytes.len();
-    let required_size = value_len + 1;
-    
-    if buffer.is_null() || buffer_size < required_size {
-        return required_size;
-    }
-    
-    let buffer_slice = slice::from_raw_parts_mut(buffer as *mut u8, buffer_size);
-    buffer_slice[..value_len].copy_from_slice(value_bytes);
-    buffer_slice[value_len] = 0;
-    
-    required_size
-}
 
-/// Get literal parameter length
-///
-/// # Arguments
-/// * `command` - Command object pointer
-/// * `index` - Parameter index
-///
-/// # Returns
-/// Required buffer size (including null terminator), or 0 on error
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_GetLiteralParamLen(
-    command: *mut KoiCommand,
-    index: usize,
-) -> usize {
-    if command.is_null() {
-        return 0;
-    }
-    
-    let command = &*(command as *mut Command);
-    let params = command.params();
-    
-    if index >= params.len() {
-        return 0;
-    }
-    
-    match &params[index] {
-        Parameter::Basic(Value::Literal(value)) => value.len() + 1,
-        _ => 0,
-    }
-}
 
 /// Get composite parameter name into provided buffer
 ///
@@ -324,7 +245,7 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeParamName(
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
     
     if index >= params.len() {
@@ -344,7 +265,7 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeParamName(
         return required_size;
     }
     
-    let buffer_slice = slice::from_raw_parts_mut(buffer as *mut u8, buffer_size);
+    let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
     buffer_slice[..name_len].copy_from_slice(name_bytes);
     buffer_slice[name_len] = 0;
     
@@ -368,7 +289,7 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeParamNameLen(
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
     
     if index >= params.len() {
@@ -394,7 +315,7 @@ pub unsafe extern "C" fn KoiCommand_IsTextCommand(command: *mut KoiCommand) -> i
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     (command.name() == "@text") as i32
 }
 
@@ -411,7 +332,7 @@ pub unsafe extern "C" fn KoiCommand_IsAnnotationCommand(command: *mut KoiCommand
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     (command.name() == "@annotation") as i32
 }
 
@@ -428,7 +349,7 @@ pub unsafe extern "C" fn KoiCommand_IsNumberCommand(command: *mut KoiCommand) ->
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     (command.name() == "@number") as i32
 }
 
@@ -449,7 +370,7 @@ pub unsafe extern "C" fn KoiCommand_AddIntParameter(
         return -1;
     }
     
-    let command = &mut *(command as *mut Command);
+    let command = unsafe { &mut *(command as *mut Command) };
     command.params.push(value.into());
     0
 }
@@ -471,7 +392,7 @@ pub unsafe extern "C" fn KoiCommand_AddFloatParameter(
         return -1;
     }
     
-    let command = &mut *(command as *mut Command);
+    let command = unsafe { &mut *(command as *mut Command) };
     command.params.push(value.into());
     0
 }
@@ -493,42 +414,17 @@ pub unsafe extern "C" fn KoiCommand_AddStringParameter(
         return -1;
     }
     
-    let value_str = match CStr::from_ptr(value).to_str() {
+    let value_str = match unsafe { CStr::from_ptr(value) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return -2,
     };
     
-    let command = &mut *(command as *mut Command);
+    let command = unsafe { &mut *(command as *mut Command) };
     command.params.push(Value::String(value_str).into());
     0
 }
 
-/// Add a new literal parameter to command
-///
-/// # Arguments
-/// * `command` - Command object pointer
-/// * `value` - Literal value (null-terminated C string)
-///
-/// # Returns
-/// 0 on success, non-zero on error
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_AddLiteralParameter(
-    command: *mut KoiCommand,
-    value: *const c_char,
-) -> i32 {
-    if command.is_null() || value.is_null() {
-        return -1;
-    }
-    
-    let value_str = match CStr::from_ptr(value).to_str() {
-        Ok(s) => s.to_string(),
-        Err(_) => return -2,
-    };
-    
-    let command = &mut *(command as *mut Command);
-    command.params.push(Value::Literal(value_str).into());
-    0
-}
+
 
 /// Remove parameter from command by index
 ///
@@ -547,7 +443,7 @@ pub unsafe extern "C" fn KoiCommand_RemoveParameter(
         return -1;
     }
     
-    let command = &mut *(command as *mut Command);
+    let command = unsafe { &mut *(command as *mut Command) };
     command.params.remove(index);
     0
 }
@@ -565,7 +461,7 @@ pub unsafe extern "C" fn KoiCommand_ClearParameters(command: *mut KoiCommand) ->
         return -1;
     }
     
-    let command = &mut *(command as *mut Command);
+    let command = unsafe { &mut *(command as *mut Command) };
     command.params.clear();
     0
 }
@@ -589,7 +485,7 @@ pub unsafe extern "C" fn KoiCommand_SetIntParameter(
         return -1;
     }
     
-    let command = &mut *(command as *mut Command);
+    let command = unsafe { &mut *(command as *mut Command) };
     let params = &mut command.params;
     
     if index >= params.len() {
@@ -624,7 +520,7 @@ pub unsafe extern "C" fn KoiCommand_SetFloatParameter(
         return -1;
     }
     
-    let command = &mut *(command as *mut Command);
+    let command = unsafe { &mut *(command as *mut Command) };
     let params = &mut command.params;
     
     if index >= params.len() {
@@ -659,12 +555,12 @@ pub unsafe extern "C" fn KoiCommand_SetStringParameter(
         return -1;
     }
     
-    let value_str = match CStr::from_ptr(value).to_str() {
+    let value_str = match unsafe { CStr::from_ptr(value) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return -2,
     };
     
-    let command = &mut *(command as *mut Command);
+    let command = unsafe { &mut *(command as *mut Command) };
     let params = &mut command.params;
     
     if index >= params.len() {
@@ -673,46 +569,6 @@ pub unsafe extern "C" fn KoiCommand_SetStringParameter(
     
     match &mut params[index] {
         Parameter::Basic(Value::String(old_value)) => {
-            *old_value = value_str;
-            0
-        }
-        _ => -4,
-    }
-}
-
-/// Modify literal parameter value
-///
-/// # Arguments
-/// * `command` - Command object pointer
-/// * `index` - Parameter index
-/// * `value` - New literal value (null-terminated C string)
-///
-/// # Returns
-/// 0 on success, non-zero on error or type mismatch
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_SetLiteralParameter(
-    command: *mut KoiCommand,
-    index: usize,
-    value: *const c_char,
-) -> i32 {
-    if command.is_null() || value.is_null() {
-        return -1;
-    }
-    
-    let value_str = match CStr::from_ptr(value).to_str() {
-        Ok(s) => s.to_string(),
-        Err(_) => return -2,
-    };
-    
-    let command = &mut *(command as *mut Command);
-    let params = &mut command.params;
-    
-    if index >= params.len() {
-        return -3;
-    }
-    
-    match &mut params[index] {
-        Parameter::Basic(Value::Literal(old_value)) => {
             *old_value = value_str;
             0
         }

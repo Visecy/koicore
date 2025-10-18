@@ -31,7 +31,7 @@ pub unsafe extern "C" fn KoiCommand_GetName(
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let name = command.name();
     let name_bytes = name.as_bytes();
     let name_len = name_bytes.len();
@@ -45,7 +45,7 @@ pub unsafe extern "C" fn KoiCommand_GetName(
     }
     
     // Copy name to buffer
-    let buffer_slice = slice::from_raw_parts_mut(buffer as *mut u8, buffer_size);
+    let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
     buffer_slice[..name_len].copy_from_slice(name_bytes);
     buffer_slice[name_len] = 0; // null terminator
     
@@ -60,7 +60,7 @@ pub unsafe extern "C" fn KoiCommand_GetNameLen(command: *mut KoiCommand) -> usiz
         return 0;
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     command.name().len() + 1 // including null terminator
 }
 
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn KoiCommand_New(
         return ptr::null_mut();
     }
     
-    let name_str = match CStr::from_ptr(name).to_str() {
+    let name_str = match unsafe { CStr::from_ptr(name) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return ptr::null_mut(),
     };
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn KoiCommand_NewText(content: *const c_char) -> *mut KoiC
         return ptr::null_mut();
     }
     
-    let content_str = match CStr::from_ptr(content).to_str() {
+    let content_str = match unsafe { CStr::from_ptr(content) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return ptr::null_mut(),
     };
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn KoiCommand_NewAnnotation(content: *const c_char) -> *mu
         return ptr::null_mut();
     }
     
-    let content_str = match CStr::from_ptr(content).to_str() {
+    let content_str = match unsafe { CStr::from_ptr(content) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return ptr::null_mut(),
     };
@@ -154,7 +154,7 @@ pub unsafe extern "C" fn KoiCommand_NewNumber(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_Free(command: *mut KoiCommand) {
     if !command.is_null() {
-        drop(Box::from_raw(command as *mut Command));
+        drop(unsafe { Box::from_raw(command as *mut Command) });
     }
 }
 
@@ -175,12 +175,12 @@ pub unsafe extern "C" fn KoiCommand_SetName(
         return -1;
     }
     
-    let name_str = match CStr::from_ptr(name).to_str() {
+    let name_str = match unsafe { CStr::from_ptr(name) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return -1,
     };
     
-    let command = &mut *(command as *mut Command);
+    let command = unsafe { &mut *(command as *mut Command) };
     command.name = name_str;
     0
 }
@@ -198,7 +198,7 @@ pub unsafe extern "C" fn KoiCommand_Clone(command: *const KoiCommand) -> *mut Ko
         return ptr::null_mut();
     }
     
-    let command = &*(command as *const Command);
+    let command = unsafe { &*(command as *const Command) };
     let cloned = command.clone();
     Box::into_raw(Box::new(cloned)) as *mut KoiCommand
 }
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn KoiCommand_Compare(
         return 0;
     }
     
-    let cmd1 = &*(command1 as *const Command);
-    let cmd2 = &*(command2 as *const Command);
+    let cmd1 = unsafe { &*(command1 as *const Command) };
+    let cmd2 = unsafe { &*(command2 as *const Command) };
     (cmd1 == cmd2) as i32
 }

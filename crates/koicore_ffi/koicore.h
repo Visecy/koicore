@@ -238,36 +238,6 @@ uintptr_t KoiCommand_GetStringParam(struct KoiCommand *command,
 uintptr_t KoiCommand_GetStringParamLen(struct KoiCommand *command, uintptr_t index);
 
 /**
- * Get literal value from basic parameter into provided buffer
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
- * * `buffer` - Buffer for literal output
- * * `buffer_size` - Buffer size
- *
- * # Returns
- * Actual literal length (excluding null terminator), or required buffer size if insufficient
- * Returns 0 on error or type mismatch
- */
-uintptr_t KoiCommand_GetLiteralParam(struct KoiCommand *command,
-                                     uintptr_t index,
-                                     char *buffer,
-                                     uintptr_t buffer_size);
-
-/**
- * Get literal parameter length
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
- *
- * # Returns
- * Required buffer size (including null terminator), or 0 on error
- */
-uintptr_t KoiCommand_GetLiteralParamLen(struct KoiCommand *command, uintptr_t index);
-
-/**
  * Get composite parameter name into provided buffer
  *
  * # Arguments
@@ -367,18 +337,6 @@ int32_t KoiCommand_AddFloatParameter(struct KoiCommand *command, double value);
 int32_t KoiCommand_AddStringParameter(struct KoiCommand *command, const char *value);
 
 /**
- * Add a new literal parameter to command
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `value` - Literal value (null-terminated C string)
- *
- * # Returns
- * 0 on success, non-zero on error
- */
-int32_t KoiCommand_AddLiteralParameter(struct KoiCommand *command, const char *value);
-
-/**
  * Remove parameter from command by index
  *
  * # Arguments
@@ -441,21 +399,6 @@ int32_t KoiCommand_SetFloatParameter(struct KoiCommand *command, uintptr_t index
 int32_t KoiCommand_SetStringParameter(struct KoiCommand *command,
                                       uintptr_t index,
                                       const char *value);
-
-/**
- * Modify literal parameter value
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
- * * `value` - New literal value (null-terminated C string)
- *
- * # Returns
- * 0 on success, non-zero on error or type mismatch
- */
-int32_t KoiCommand_SetLiteralParameter(struct KoiCommand *command,
-                                       uintptr_t index,
-                                       const char *value);
 
 /**
  * Get composite list parameter from command

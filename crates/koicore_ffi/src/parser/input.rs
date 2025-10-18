@@ -28,7 +28,7 @@ pub unsafe extern "C" fn KoiInputSource_FromString(
         return ptr::null_mut();
     }
     
-    let source_str = match CStr::from_ptr(source).to_str() {
+    let source_str = match unsafe { CStr::from_ptr(source) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return ptr::null_mut(),
     };
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn KoiInputSource_FromFile(
         return ptr::null_mut();
     }
     
-    let source_str = match CStr::from_ptr(path).to_str() {
+    let source_str = match unsafe { CStr::from_ptr(path) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return ptr::null_mut(),
     };
@@ -72,12 +72,12 @@ pub unsafe extern "C" fn KoiInputSource_FromFileAndEncoding(
         return ptr::null_mut();
     }
 
-    let path_str = match CStr::from_ptr(path).to_str() {
+    let path_str = match unsafe { CStr::from_ptr(path) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return ptr::null_mut(),
     };
 
-    let encoding_str = match CStr::from_ptr(encoding).to_str() {
+    let encoding_str = match unsafe { CStr::from_ptr(encoding) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return ptr::null_mut(),
     };
@@ -91,7 +91,6 @@ pub unsafe extern "C" fn KoiInputSource_FromFileAndEncoding(
         KoiFileInputEncodingStrategy::Strict => EncodingErrorStrategy::Strict,
         KoiFileInputEncodingStrategy::Replace => EncodingErrorStrategy::Replace,
         KoiFileInputEncodingStrategy::Ignore => EncodingErrorStrategy::Ignore,
-        _ => EncodingErrorStrategy::Strict,
     };
 
     let input = FileInputSource::with_encoding(

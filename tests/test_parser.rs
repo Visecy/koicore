@@ -11,7 +11,7 @@ fn test_parse_hello_world() {
         cmd,
         Some(parser::Command::new(
             "hello".to_string(),
-            vec![parser::Parameter::Basic(parser::Value::Literal(
+            vec![parser::Parameter::Basic(parser::Value::String(
                 "world".to_string()
             ))]
         ))

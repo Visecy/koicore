@@ -29,7 +29,7 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeList(
         return ptr::null_mut();
     }
     
-    let command = &*(command as *mut Command);
+    let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
     
     if index >= params.len() {
@@ -58,7 +58,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetLength(list: *mut KoiCompositeList)
         return 0;
     }
     
-    let param = &*(list as *const Parameter);
+    let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => values.len(),
         _ => 0,
@@ -82,7 +82,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetValueType(
         return KoiParamType::Invalid as i32;
     }
     
-    let param = &*(list as *const Parameter);
+    let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
@@ -91,7 +91,6 @@ pub unsafe extern "C" fn KoiCompositeList_GetValueType(
                 match &values[index] {
                     Value::Int(_) => KoiParamType::BasicInt as i32,
                     Value::Float(_) => KoiParamType::BasicFloat as i32,
-                    Value::Literal(_) => KoiParamType::BasicLiteral as i32,
                     Value::String(_) => KoiParamType::BasicString as i32,
                 }
             }
@@ -119,7 +118,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetIntValue(
         return 0;
     }
     
-    let param = &*(list as *const Parameter);
+    let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
@@ -128,7 +127,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetIntValue(
             
             match &values[index] {
                 Value::Int(value) => {
-                    *out_value = *value;
+                    unsafe { *out_value = *value };
                     1
                 }
                 _ => 0,
@@ -157,7 +156,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetFloatValue(
         return 0;
     }
     
-    let param = &*(list as *const Parameter);
+    let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
@@ -166,7 +165,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetFloatValue(
             
             match &values[index] {
                 Value::Float(value) => {
-                    *out_value = *value;
+                    unsafe { *out_value = *value };
                     1
                 }
                 _ => 0,
@@ -197,7 +196,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetStringValue(
         return 0;
     }
     
-    let param = &*(list as *const Parameter);
+    let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
@@ -217,7 +216,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetStringValue(
                 return required_size;
             }
             
-            let buffer_slice = slice::from_raw_parts_mut(out_value as *mut u8, buffer_size);
+            let buffer_slice = unsafe { slice::from_raw_parts_mut(out_value as *mut u8, buffer_size) };
             buffer_slice[..value_len].copy_from_slice(value_bytes);
             buffer_slice[value_len] = 0;
             
@@ -244,7 +243,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetStringValueLen(
         return 0;
     }
     
-    let param = &*(list as *const Parameter);
+    let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {

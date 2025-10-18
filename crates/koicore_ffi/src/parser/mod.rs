@@ -23,11 +23,11 @@ pub unsafe extern "C" fn KoiParser_New(
     input: *mut KoiInputSource,
     config: *mut KoiParserConfig
 ) -> *mut KoiParser {
-    if config.is_null() {
+    if config.is_null() || input.is_null() {
         return ptr::null_mut();
     }
     
-    let config = &*(config as *mut KoiParserConfig);
+    let config = unsafe { &*(config as *mut KoiParserConfig) };
     let input: Box<KoiInputSource> = unsafe {
         Box::from_raw(input)
     };
@@ -38,7 +38,7 @@ pub unsafe extern "C" fn KoiParser_New(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiParser_Del(parser: *mut KoiParser) {
     if !parser.is_null() {
-        drop(Box::from_raw(parser as *mut Parser<Box<dyn TextInputSource>>));
+        drop(unsafe { Box::from_raw(parser as *mut Parser<Box<dyn TextInputSource>>) });
     }
 }
 
@@ -50,7 +50,7 @@ pub unsafe extern "C" fn KoiParser_NextCommand(
         return ptr::null_mut();
     }
 
-    let parser = &mut*(parser);
+    let parser = unsafe { &mut *parser };
     let inner = &mut parser.inner;
     let command = inner.next_command();
     match command {
@@ -72,7 +72,7 @@ pub unsafe extern "C" fn KoiParser_Error(parser: *mut KoiParser) -> *mut KoiPars
         return ptr::null_mut();
     }
 
-    let parser = &mut*(parser);
+    let parser = unsafe { &mut *parser };
     let error = parser.last_error.take();
     if error.is_none() {
         return ptr::null_mut();

@@ -9,14 +9,7 @@ use std::{collections::HashMap, fmt};
 pub enum Value {
     Int(i64),
     Float(f64),
-    Literal(String),
     String(String),
-}
-
-impl Value {
-    pub fn from_literal<T: Into<String>>(s: T) -> Self {
-        Self::Literal(s.into())
-    }
 }
 
 impl From<i64> for Value {
@@ -48,8 +41,14 @@ impl fmt::Display for Value {
         match self {
             Value::Int(i) => write!(f, "{}", i),
             Value::Float(fl) => write!(f, "{}", fl),
-            Value::Literal(s) => write!(f, "{}", s),
-            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::String(s) => {
+                // Check if the string needs to be quoted (contains spaces or special characters)
+                if s.contains(' ') || s.contains('\t') || s.contains('\n') || s.is_empty() {
+                    write!(f, "\"{}\"", s)
+                } else {
+                    write!(f, "{}", s)
+                }
+            }
         }
     }
 }
@@ -190,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_command_display() {
-        let cmd = Command::new("hello".to_string(), vec![Parameter::Basic(Value::Literal("world".to_string()))]);
+        let cmd = Command::new("hello".to_string(), vec![Parameter::Basic("world".to_string().into())]);
         assert_eq!(format!("{}", cmd), "hello world");
     }
 

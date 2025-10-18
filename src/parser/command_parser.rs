@@ -197,7 +197,7 @@ fn parse_literal_str<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a 
 fn parse_literal<'a, E: ParseError<&'a str> + ContextError<&'a str>>(input: &'a str) -> IResult<&'a str, Value, E> {
     context(
         "literal",
-        map(parse_literal_str, |s: &str| Value::Literal(s.to_string()))
+        map(parse_literal_str, |s: &str| Value::String(s.to_string()))
     ).parse(input)
 }
 
@@ -335,8 +335,8 @@ mod tests {
 
     #[test]
     fn test_parse_literal() {
-        assert_eq!(parse_literal::<nom::error::Error<&str>>("hello"), Ok(("", Value::Literal("hello".to_string()))));
-        assert_eq!(parse_literal::<nom::error::Error<&str>>("_test_123"), Ok(("", Value::Literal("_test_123".to_string()))));
+        assert_eq!(parse_literal::<nom::error::Error<&str>>("hello"), Ok(("", Value::String("hello".to_string()))));
+        assert_eq!(parse_literal::<nom::error::Error<&str>>("_test_123"), Ok(("", Value::String("_test_123".to_string()))));
     }
 
     #[test]
@@ -358,7 +358,7 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(cmd.name(), "draw");
         assert_eq!(cmd.params().len(), 2);
-        assert_eq!(cmd.params()[0], Value::Literal("Line".to_string()).into());
+        assert_eq!(cmd.params()[0], Value::String("Line".to_string()).into());
         assert_eq!(cmd.params()[1], Value::from(2).into());
     }
 
@@ -456,7 +456,7 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(cmd.name(), "draw");
         assert_eq!(cmd.params().len(), 5);
-        assert_eq!(cmd.params()[0], Value::Literal("Line".to_string()).into());
+        assert_eq!(cmd.params()[0], Value::String("Line".to_string()).into());
         assert_eq!(cmd.params()[1], Value::from(2).into());
         assert_eq!(
             cmd.params()[2],
@@ -524,7 +524,7 @@ mod tests {
         assert_eq!(remaining, "");
         assert_eq!(cmd.name(), "draw");
         assert_eq!(cmd.params().len(), 2);
-        assert_eq!(cmd.params()[0], Value::Literal("Line".to_string()).into());
+        assert_eq!(cmd.params()[0], Value::String("Line".to_string()).into());
         assert_eq!(cmd.params()[1], Value::from(2).into());
     }
 
