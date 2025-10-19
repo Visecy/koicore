@@ -46,6 +46,24 @@ typedef struct KoiCompositeDict {
 
 } KoiCompositeDict;
 
+typedef struct KoiParserConfig {
+  /**
+   * The command threshold (number of # required for commands)
+   *
+   * Lines with fewer # characters than this threshold are treated as text.
+   * Lines with exactly this many # characters are treated as commands.
+   * Lines with more # characters are treated as annotations.
+   */
+  uintptr_t command_threshold;
+  /**
+   * Whether to skip annotation lines (lines starting with #)
+   *
+   * If set to true, annotation lines will be skipped and not processed as commands.
+   * If set to false, annotation lines will be included in the output as special commands.
+   */
+  bool skip_annotations;
+} KoiParserConfig;
+
 typedef struct KoiParserError {
 
 } KoiParserError;
@@ -605,7 +623,7 @@ uintptr_t KoiCompositeDict_GetStringValue(struct KoiCompositeDict *dict,
  */
 uintptr_t KoiCompositeDict_GetStringValueLen(struct KoiCompositeDict *dict, const char *key);
 
-struct KoiParser *KoiParser_New(struct KoiInputSource *input, KoiParserConfig *config);
+struct KoiParser *KoiParser_New(struct KoiInputSource *input, struct KoiParserConfig *config);
 
 void KoiParser_Del(struct KoiParser *parser);
 

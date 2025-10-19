@@ -32,6 +32,7 @@ pub mod decode_buf_reader;
 mod command_parser;
 
 pub use super::command::{ Command, Parameter, Value };
+use nom::Offset;
 pub use traceback::TracebackEntry;
 pub use error::{ ParseError, ParseResult, ErrorInfo };
 pub use input::{ TextInputSource, FileInputSource, StringInputSource };
@@ -42,20 +43,26 @@ use traceback::NomErrorNode;
 /// Configuration for the line processor
 ///
 /// Controls how the parser interprets different types of lines in the input.
-#[repr(C)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParserConfig {
     /// The command threshold (number of # required for commands)
+    /// 
     /// Lines with fewer # characters than this threshold are treated as text.
     /// Lines with exactly this many # characters are treated as commands.
     /// Lines with more # characters are treated as annotations.
     pub command_threshold: usize,
+    /// Whether to skip annotation lines (lines starting with #)
+    ///
+    /// If set to true, annotation lines will be skipped and not processed as commands.
+    /// If set to false, annotation lines will be included in the output as special commands.
+    pub skip_annotations: bool,
 }
 
 impl Default for ParserConfig {
     fn default() -> Self {
         Self {
             command_threshold: 1,
+            skip_annotations: false,
         }
     }
 }
@@ -75,12 +82,47 @@ impl ParserConfig {
     /// let config = ParserConfig::default();
     ///
     /// // Custom threshold
-    /// let config = ParserConfig { command_threshold: 2 };
+    /// let config = ParserConfig { command_threshold: 2, skip_annotations: true };
     /// ```
-    pub fn new(threshold: usize) -> Self {
+    pub fn new(threshold: usize, skip_annotations: bool) -> Self {
         Self {
             command_threshold: threshold,
+            skip_annotations,
         }
+    }
+    
+    /// Set the command threshold for this configuration
+    ///
+    /// # Arguments
+    /// * `threshold` - New number of # characters required to identify a command line
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use koicore::parser::ParserConfig;
+    ///
+    /// let config = ParserConfig::default().with_command_threshold(2);
+    /// ```
+    pub fn with_command_threshold(mut self, threshold: usize) -> Self {
+        self.command_threshold = threshold;
+        self
+    }
+
+    /// Set whether to skip annotation lines for this configuration
+    ///
+    /// # Arguments
+    /// * `skip` - Whether to skip annotation lines (true) or include them (false)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use koicore::parser::ParserConfig;
+    ///
+    /// let config = ParserConfig::default().with_skip_annotations(true);
+    /// ```
+    pub fn with_skip_annotations(mut self, skip: bool) -> Self {
+        self.skip_annotations = skip;
+        self
     }
 }
 
@@ -138,18 +180,8 @@ impl<T: TextInputSource> Parser<T> {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn next_command(&mut self) -> ParseResult<Option<Command>> {
-        let (mut lineno, mut line_text) = match self.input.next_line() {
-            Ok(Some(line_info)) => line_info,
-            Ok(None) => {
-                return Ok(None);
-            }
-            Err(e) => {
-                return Err(ParseError::io(e).with_source(&self.input, self.input.line_number, "".to_owned()));
-            }
-        };
-        let mut trimmed = line_text.trim();
-        while trimmed.is_empty() {
-            (lineno, line_text) = match self.input.next_line() {
+        loop {
+            let (lineno, line_text) = match self.input.next_line() {
                 Ok(Some(line_info)) => line_info,
                 Ok(None) => {
                     return Ok(None);
@@ -158,23 +190,28 @@ impl<T: TextInputSource> Parser<T> {
                     return Err(ParseError::io(e).with_source(&self.input, self.input.line_number, "".to_owned()));
                 }
             };
-            trimmed = line_text.trim();
-        }
+            let trimmed = line_text.trim();
 
-        // Count leading # characters
-        let hash_count = trimmed
-            .chars()
-            .take_while(|&c| c == '#')
-            .count();
-        if hash_count < self.config.command_threshold {
-            Ok(Some(Command::new_text(trimmed.to_string())))
-        } else if hash_count > self.config.command_threshold {
-            Ok(Some(Command::new_annotation(trimmed.to_string())))
-        } else {
-            self.parse_command_line(
-                trimmed.trim_start_matches('#').to_string(),
-                lineno
-            ).map_err(|e| e.with_source(&self.input, lineno, line_text))
+            // Count leading # characters
+            let hash_count = trimmed
+                .chars()
+                .take_while(|&c| c == '#')
+                .count();
+
+            if hash_count < self.config.command_threshold {
+                break Ok(Some(Command::new_text(trimmed.to_string())));
+            } else if hash_count > self.config.command_threshold {
+                if self.config.skip_annotations {
+                    continue;
+                }
+                break Ok(Some(Command::new_annotation(trimmed.to_string())));
+            } else {
+                // hash_count == self.config.command_threshold
+                let column = line_text.offset(trimmed) + hash_count;
+                let command_str: String = trimmed.chars().skip(hash_count).collect();
+                break self.parse_command_line(command_str, lineno, column)
+                    .map_err(|e| e.with_source(&self.input, lineno, line_text));
+            }
         }
     }
 
@@ -187,17 +224,19 @@ impl<T: TextInputSource> Parser<T> {
     /// # Arguments
     /// * `command_text` - The text content of the command (without the # prefix)
     /// * `lineno` - The line number in the source file
+    /// * `column` - The column number in the source file
     pub fn parse_command_line(
         &self,
         command_text: String,
-        lineno: usize
+        lineno: usize,
+        column: usize,
     ) -> ParseResult<Option<Command>> {
         if command_text.is_empty() {
             return Err(
                 ParseError::syntax_with_context(
                     "Empty command line".to_string(),
                     lineno,
-                    command_text.find('#').unwrap_or(0),
+                    column,
                     command_text
                 )
             );
@@ -210,7 +249,7 @@ impl<T: TextInputSource> Parser<T> {
         match result {
             Ok(("", command)) => { Ok(Some(command)) }
             Ok((remaining, _)) => {
-                Err(ParseError::unexpected_input(remaining.to_string(), lineno, command_text))
+                Err(ParseError::unexpected_input(remaining.to_string(), lineno, column, command_text))
             }
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                 // Create a simple nom error for compatibility
@@ -219,12 +258,13 @@ impl<T: TextInputSource> Parser<T> {
                         "Command parsing error".to_string(),
                         command_text.as_str(),
                         lineno,
+                        column,
                         e
                     )
                 )
             }
             Err(nom::Err::Incomplete(_)) => {
-                Err(ParseError::unexpected_eof(command_text, lineno))
+                Err(ParseError::unexpected_eof(command_text, lineno, column))
             }
         }
     }

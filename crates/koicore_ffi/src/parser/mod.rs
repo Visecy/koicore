@@ -1,14 +1,15 @@
 mod error;
 mod input;
+mod config;
 
 use std::ptr;
 
 use koicore::parser::{TextInputSource, ParseError};
 use koicore::Parser;
-pub use koicore::parser::ParserConfig as KoiParserConfig;
 
 use error::KoiParserError;
 use input::KoiInputSource;
+use config::KoiParserConfig;
 use crate::command::KoiCommand;
 
 #[repr(C)]
@@ -31,7 +32,7 @@ pub unsafe extern "C" fn KoiParser_New(
     let input: Box<KoiInputSource> = unsafe {
         Box::from_raw(input)
     };
-    let parser = Parser::new(input.inner, config.clone());
+    let parser = Parser::new(input.inner, config.clone().into());
     Box::into_raw(Box::new(parser)) as *mut KoiParser
 }
 

@@ -81,12 +81,12 @@ impl ParseError {
                 message,
             },
             traceback: Some(TracebackEntry::new(line, (column, column + 1), context)),
-        source: None,
+            source: None,
         })
     }
     /// Create a new unexpected input error
-    pub fn unexpected_input(remaining: String, line: usize, input: String) -> Box<Self> {
-        let column = input.len() - remaining.len() + 1;
+    pub fn unexpected_input(remaining: String, line: usize, column_offset: usize, input: String) -> Box<Self> {
+        let column = input.len() - remaining.len() + 1 + column_offset;
         Box::new(ParseError {
             traceback: Some(
                 TracebackEntry::new(line, (column, column + remaining.len()),
@@ -100,12 +100,12 @@ impl ParseError {
     }
 
     /// Create a new unexpected EOF error
-    pub fn unexpected_eof(expected: String, line: usize) -> Box<Self> {
+    pub fn unexpected_eof(expected: String, line: usize, column_offset: usize) -> Box<Self> {
         Box::new(ParseError {
             error_info: ErrorInfo::UnexpectedEof {
                 expected,
             },
-            traceback: Some(TracebackEntry::new(line, (0, 0), "".to_string())),
+            traceback: Some(TracebackEntry::new(line, (column_offset, column_offset), "".to_string())),
             source: None,
         })
     }
@@ -126,9 +126,10 @@ impl ParseError {
         message: String,
         original_input: I,
         lineno: usize,
+        column: usize,
         nom_error: NomErrorNode<I>,
     ) -> Box<Self> {
-        let traceback = TracebackEntry::build_error_trace(original_input, lineno, &nom_error);
+        let traceback = TracebackEntry::build_error_trace(original_input, lineno, column, &nom_error);
         Box::new(ParseError {
             error_info: ErrorInfo::SyntaxError {
                 message,
@@ -196,13 +197,13 @@ impl fmt::Display for ParseError {
                 let (start, end) = traceback.column_range;
                 
                 // Display source location
-                write!(f, "\n   --> {}:{}:{}", source.filename, source.lineno, start)?;
+                write!(f, "\n  -->   {}:{}:{}", source.filename, source.lineno, start)?;
             
             // Display the code line with visual indicators
             write!(f, "\n    │")?;
                 
                 // Display line number and content
-                write!(f, "\n{: ^4}│   {}", source.lineno, &source.text)?;
+                write!(f, "\n{: ^4}│    {}", source.lineno, &source.text)?;
                 
                 // Show arrow pointing to error location
                 let arrow = " ".repeat(start + 3) + &"^".repeat(end - start);
@@ -212,7 +213,9 @@ impl fmt::Display for ParseError {
         writeln!(f)?;
         // Display the traceback tree
         if let Some(traceback) = &self.traceback {
-            traceback.write_tree(f, "    ", false)?;
+            if !traceback.context.is_empty() {
+                traceback.write_tree(f, "    ", false)?;
+            }
         }
         
         Ok(())

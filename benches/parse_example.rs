@@ -8,7 +8,7 @@ fn parse_example() {
     let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
     // just test no error
     parser.process_with(|_| {
-        Ok::<(), Box<parser::ParseError>>(())
+        Ok::<bool, Box<parser::ParseError>>(true)
     }).expect("Failed to process file");
 }
 
