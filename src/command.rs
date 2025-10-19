@@ -1,14 +1,52 @@
 //! Command structures for KoiLang parsing
 //! 
 //! This module defines the data structures used to represent parsed commands
-//! and their arguments in a unified format.
+//! and their arguments in a unified format. Commands are the fundamental building
+//! blocks of KoiLang files, representing actions, text content, and annotations.
+//! 
+//! ## Core Types
+//! 
+//! - [`Value`] - Basic value types (integers, floats, strings)
+//! - [`CompositeValue`] - Complex value types (lists, dictionaries)
+//! - [`Parameter`] - Command parameters that can be basic or composite
+//! - [`Command`] - Complete commands with name and parameters
+//! 
+//! ## Examples
+//! 
+//! ```rust
+//! use koicore::command::{Command, Parameter, Value, CompositeValue};
+//! 
+//! // Create a simple command
+//! let cmd = Command::new("character".to_string(), vec![
+//!     Parameter::from("Alice"),
+//!     Parameter::from("Hello, world!")
+//! ]);
+//! 
+//! // Create a command with composite parameters
+//! let cmd = Command::new("action".to_string(), vec![
+//!     Parameter::from(("type", "walk")),
+//!     Parameter::from(("direction", "left")),
+//!     Parameter::Composite("speed".to_string(), CompositeValue::Single(Value::Int(5)))
+//! ]);
+//! 
+//! // Create text and annotation commands
+//! let text_cmd = Command::new_text("Hello, world!".to_string());
+//! let annotation_cmd = Command::new_annotation("This is an annotation".to_string());
+//! ```
 
 use std::{collections::HashMap, fmt};
 
+/// Basic value types supported by KoiLang
+/// 
+/// Represents the fundamental data types that can appear as command parameters
+/// or within composite values.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
+    /// Integer values (64-bit signed)
     Int(i64),
+    /// Floating-point values (64-bit)
     Float(f64),
+    /// String values (UTF-8 encoded)
     String(String),
 }
 
@@ -53,10 +91,17 @@ impl fmt::Display for Value {
     }
 }
 
+/// Composite value types that can contain multiple basic values
+/// 
+/// Represents complex data structures that can appear as command parameters,
+/// including lists and dictionaries.
 #[derive(Debug, Clone, PartialEq)]
 pub enum CompositeValue {
+    /// Single basic value
     Single(Value),
+    /// List of basic values
     List(Vec<Value>),
+    /// Dictionary mapping strings to values
     Dict(Vec<(String, Value)>),
 }
 
@@ -110,10 +155,15 @@ impl fmt::Display for CompositeValue {
     }
 }
 
-
+/// Command parameter types
+/// 
+/// Parameters can be either basic values or composite values with names.
+/// This allows for flexible command structures in KoiLang.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Parameter {
+    /// Basic parameter containing only a value
     Basic(Value),
+    /// Named composite parameter (e.g., `name(value)` or `name(list)`)
     Composite(String, CompositeValue),
 }
 
@@ -138,35 +188,84 @@ impl fmt::Display for Parameter {
     }
 }
 
+/// Represents a complete KoiLang command
+/// 
+/// Commands are the fundamental units of KoiLang files, consisting of a name
+/// and zero or more parameters. They can represent actions, text content, or annotations.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Command {
+    /// The command name (e.g., "character", "background", "@text")
     pub name: String,
+    /// List of command parameters
     pub params: Vec<Parameter>,
 }
 
 impl Command {
+    /// Create a new command with the specified name and parameters
+    /// 
+    /// # Arguments
+    /// * `name` - The command name
+    /// * `params` - Vector of command parameters
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use koicore::command::{Command, Parameter, Value};
+    /// 
+    /// let cmd = Command::new("character".to_string(), vec![
+    ///     Parameter::from("Alice"),
+    ///     Parameter::from("Hello!")
+    /// ]);
+    /// ```
     pub fn new(name: String, params: Vec<Parameter>) -> Self {
         Self { name, params }
     }
 
+    /// Create a text command representing regular content
+    /// 
+    /// Text commands are created for lines that don't start with the command prefix.
+    /// They use the special "@text" command name.
+    /// 
+    /// # Arguments
+    /// * `content` - The text content
     pub fn new_text(content: String) -> Self {
         Self::new("@text".to_string(), vec![Parameter::from(content)])
     }
 
+    /// Create an annotation command
+    /// 
+    /// Annotation commands are created for lines with more `#` characters than
+    /// the command threshold. They use the special "@annotation" command name.
+    /// 
+    /// # Arguments
+    /// * `content` - The annotation content
     pub fn new_annotation(content: String) -> Self {
         Self::new("@annotation".to_string(), vec![Parameter::from(content)])
     }
 
+    /// Create a number command with integer value and additional parameters
+    /// 
+    /// This is a convenience method for creating commands that start with a number.
+    /// 
+    /// # Arguments
+    /// * `value` - The integer value
+    /// * `args` - Additional parameters
     pub fn new_number(value: i64, args: Vec<Parameter>) -> Self {
         let mut all_args = vec![Parameter::from(value)];
         all_args.extend(args);
         Self::new("@number".to_string(), all_args)
     }
 
+    /// Get the command name
+    /// 
+    /// Returns a reference to the command name string.
     pub fn name(&self) -> &str {
         &self.name
     }
 
+    /// Get the command parameters
+    /// 
+    /// Returns a slice of all parameters associated with this command.
     pub fn params(&self) -> &[Parameter] {
         &self.params
     }

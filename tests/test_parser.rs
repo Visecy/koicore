@@ -3,6 +3,22 @@ use std::path::Path;
 use koicore::parser;
 
 #[test]
+fn test_early_stop() {
+    let input = parser::StringInputSource::new("#cmd1\n#cmd2\n#cmd3");
+    let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
+    let mut count = 0;
+    let reached_eof = parser
+        .process_with(|_cmd| {
+            count += 1;
+            // stop after first command
+            Ok::<bool, Box<parser::ParseError>>(false)
+        })
+        .expect("Failed to process");
+    assert_eq!(count, 1);
+    assert!(!reached_eof, "Should have stopped early");
+}
+
+#[test]
 fn test_parse_hello_world() {
     let input = parser::StringInputSource::new("#hello world\nThis is a text.");
     let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
@@ -28,10 +44,13 @@ fn test_parse_example() {
     let input = parser::FileInputSource::new(Path::new("examples/ktxt/example0.ktxt")).expect("Failed to open file");
     let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
     // just test no error
-    parser.process_with(|cmd| {
+    let reached_eof = parser.process_with(|cmd| {
         println!("{:?}", cmd);
-        Ok::<(), Box<parser::ParseError>>(())
+        Ok::<bool, Box<parser::ParseError>>(true)
     }).expect("Failed to process file");
+    
+    // Since we're processing the entire file, we should reach EOF
+    assert!(reached_eof, "Should have reached end of file");
 }
 
 #[test]
