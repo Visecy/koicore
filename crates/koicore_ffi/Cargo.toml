@@ -17,3 +17,4 @@ cbindgen = "0.29"
 [dependencies]
 koicore = { path = "../.." }
 encoding_rs = "0.8"
+errno = "0.3.14"

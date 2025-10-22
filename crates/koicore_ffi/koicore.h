@@ -6,6 +6,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifdef __cplusplus
+namespace koicore {
+#endif  // __cplusplus
+
 typedef enum KoiFileInputEncodingStrategy {
   /**
    * Strict encoding error strategy, panics on invalid sequences
@@ -62,11 +66,27 @@ typedef struct KoiParserConfig {
    * If set to false, annotation lines will be included in the output as special commands.
    */
   bool skip_annotations;
+  /**
+   * Whether to convert number commands to special commands
+   *
+   * If set to true, commands with names that are valid integers will be converted
+   * to special number commands. If set to false, they will be treated as regular commands.
+   */
+  bool convert_number_command;
 } KoiParserConfig;
 
 typedef struct KoiParserError {
 
 } KoiParserError;
+
+typedef struct KoiTextInputSourceVTable {
+  char *(*next_line)(void *user_data);
+  const char *(*source_name)(void *user_data);
+} KoiTextInputSourceVTable;
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
 
 /**
  * Get command name, caller provides buffer
@@ -139,7 +159,7 @@ struct KoiCommand *KoiCommand_NewNumber(int64_t value);
  * # Arguments
  * * `command` - Command object pointer to free
  */
-void KoiCommand_Free(struct KoiCommand *command);
+void KoiCommand_Del(struct KoiCommand *command);
 
 /**
  * Set command name
@@ -631,6 +651,9 @@ struct KoiCommand *KoiParser_NextCommand(struct KoiParser *parser);
 
 struct KoiParserError *KoiParser_Error(struct KoiParser *parser);
 
+struct KoiInputSource *KoiInputSource_FromVTable(const struct KoiTextInputSourceVTable *vtable,
+                                                 void *user_data);
+
 struct KoiInputSource *KoiInputSource_FromString(const char *source);
 
 struct KoiInputSource *KoiInputSource_FromFile(const char *path);
@@ -638,5 +661,15 @@ struct KoiInputSource *KoiInputSource_FromFile(const char *path);
 struct KoiInputSource *KoiInputSource_FromFileAndEncoding(const char *path,
                                                           const char *encoding,
                                                           enum KoiFileInputEncodingStrategy encoding_strategy);
+
+void KoiParserConfig_Init(struct KoiParserConfig *config);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
+
+#ifdef __cplusplus
+}  // namespace koicore
+#endif  // __cplusplus
 
 #endif  /* _INCLUDE_KOICORE_ */

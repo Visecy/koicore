@@ -56,6 +56,11 @@ pub struct ParserConfig {
     /// If set to true, annotation lines will be skipped and not processed as commands.
     /// If set to false, annotation lines will be included in the output as special commands.
     pub skip_annotations: bool,
+    /// Whether to convert number commands to special commands
+    ///
+    /// If set to true, commands with names that are valid integers will be converted
+    /// to special number commands. If set to false, they will be treated as regular commands.
+    pub convert_number_command: bool,
 }
 
 impl Default for ParserConfig {
@@ -63,6 +68,7 @@ impl Default for ParserConfig {
         Self {
             command_threshold: 1,
             skip_annotations: false,
+            convert_number_command: true,
         }
     }
 }
@@ -82,12 +88,13 @@ impl ParserConfig {
     /// let config = ParserConfig::default();
     ///
     /// // Custom threshold
-    /// let config = ParserConfig { command_threshold: 2, skip_annotations: true };
+    /// let config = ParserConfig { command_threshold: 2, skip_annotations: true, convert_number_command: true };
     /// ```
-    pub fn new(threshold: usize, skip_annotations: bool) -> Self {
+    pub fn new(threshold: usize, skip_annotations: bool, convert_number_command: bool) -> Self {
         Self {
             command_threshold: threshold,
             skip_annotations,
+            convert_number_command,
         }
     }
     
@@ -122,6 +129,23 @@ impl ParserConfig {
     /// ```
     pub fn with_skip_annotations(mut self, skip: bool) -> Self {
         self.skip_annotations = skip;
+        self
+    }
+
+    /// Set whether to convert number command name into @number
+    ///
+    /// # Arguments
+    /// * `convert` - Whether to convert number command name into @number
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use koicore::parser::ParserConfig;
+    ///
+    /// let config = ParserConfig::default().with_convert_number_command(true);
+    /// ```
+    pub fn with_convert_number_command(mut self, convert: bool) -> Self {
+        self.convert_number_command = convert;
         self
     }
 }
@@ -199,12 +223,12 @@ impl<T: TextInputSource> Parser<T> {
                 .count();
 
             if hash_count < self.config.command_threshold {
-                break Ok(Some(Command::new_text(trimmed.to_string())));
+                break Ok(Some(Command::new_text(trimmed)));
             } else if hash_count > self.config.command_threshold {
                 if self.config.skip_annotations {
                     continue;
                 }
-                break Ok(Some(Command::new_annotation(trimmed.to_string())));
+                break Ok(Some(Command::new_annotation(trimmed)));
             } else {
                 // hash_count == self.config.command_threshold
                 let column = line_text.offset(trimmed) + hash_count;
@@ -247,7 +271,17 @@ impl<T: TextInputSource> Parser<T> {
         );
 
         match result {
-            Ok(("", command)) => { Ok(Some(command)) }
+            Ok(("", command)) => {
+                let num_name = i64::from_str_radix(command.name(), 10);
+                if num_name.is_err() || !self.config.convert_number_command {
+                    Ok(Some(command))
+                } else {
+                    Ok(Some(Command::new_number(
+                        num_name.unwrap(),
+                        command.params
+                    )))
+                }
+            }
             Ok((remaining, _)) => {
                 Err(ParseError::unexpected_input(remaining.to_string(), lineno, column, command_text))
             }

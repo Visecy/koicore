@@ -36,7 +36,7 @@ koicore = "0.1.0"
 ## 快速开始
 
 ```rust
-# use koicore::parser::{Parser, ParserConfig, StringInputSource};
+use koicore::parser::{Parser, ParserConfig, StringInputSource};
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 // 创建输入源
 let input = StringInputSource::new(r#"
@@ -146,17 +146,18 @@ KoiLang 支持各种参数类型：
 `Command` 结构表示解析后的 KoiLang 命令：
 
 ```rust
-# use koicore::command::{Command, Parameter};
+use koicore::command::{Command, Parameter};
+
 # fn main() {
 // 创建简单命令
-let cmd = Command::new("character".to_string(), vec![
+let cmd = Command::new("character", vec![
     Parameter::from("Alice"),
     Parameter::from("Hello, world!")
 ]);
 
 // 创建文本和注释命令
-let text_cmd = Command::new_text("Narrative text".to_string());
-let annotation_cmd = Command::new_annotation("Annotation text".to_string());
+let text_cmd = Command::new_text("Narrative text");
+let annotation_cmd = Command::new_annotation("Annotation text");
 # }
 ```
 
@@ -164,7 +165,8 @@ let annotation_cmd = Command::new_annotation("Annotation text".to_string());
 使用 `ParserConfig` 自定义解析行为：
 
 ```rust
-# use koicore::parser::ParserConfig;
+use koicore::parser::ParserConfig;
+
 # fn main() {
 // 默认配置（阈值 = 1）
 let config = ParserConfig::default();
@@ -178,7 +180,8 @@ let config = ParserConfig { command_threshold: 2 };
 支持各种输入源：
 
 ```rust
-# use koicore::parser::{StringInputSource, FileInputSource};
+use koicore::parser::{StringInputSource, FileInputSource};
+
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 // 从字符串解析
 let input = StringInputSource::new("#test command");
@@ -221,7 +224,8 @@ while let Some(command) = parser.next_command()? {
 支持 UTF-8 编码的内容：
 
 ```rust
-# use koicore::parser::{Parser, ParserConfig, StringInputSource};
+use koicore::parser::{Parser, ParserConfig, StringInputSource};
+
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 let input = StringInputSource::new(r#"
 #title "Hello World"

@@ -17,21 +17,21 @@
 //! use koicore::command::{Command, Parameter, Value, CompositeValue};
 //! 
 //! // Create a simple command
-//! let cmd = Command::new("character".to_string(), vec![
+//! let cmd = Command::new("character", vec![
 //!     Parameter::from("Alice"),
 //!     Parameter::from("Hello, world!")
 //! ]);
 //! 
 //! // Create a command with composite parameters
-//! let cmd = Command::new("action".to_string(), vec![
+//! let cmd = Command::new("action", vec![
 //!     Parameter::from(("type", "walk")),
 //!     Parameter::from(("direction", "left")),
 //!     Parameter::Composite("speed".to_string(), CompositeValue::Single(Value::Int(5)))
 //! ]);
 //! 
 //! // Create text and annotation commands
-//! let text_cmd = Command::new_text("Hello, world!".to_string());
-//! let annotation_cmd = Command::new_annotation("This is an annotation".to_string());
+//! let text_cmd = Command::new_text("Hello, world!");
+//! let annotation_cmd = Command::new_annotation("This is an annotation");
 //! ```
 
 use std::{collections::HashMap, fmt};
@@ -204,7 +204,7 @@ impl Command {
     /// Create a new command with the specified name and parameters
     /// 
     /// # Arguments
-    /// * `name` - The command name
+    /// * `name` - The command name (can be `&str` or `String`)
     /// * `params` - Vector of command parameters
     /// 
     /// # Examples
@@ -212,13 +212,20 @@ impl Command {
     /// ```rust
     /// use koicore::command::{Command, Parameter, Value};
     /// 
+    /// // Using &str
+    /// let cmd = Command::new("character", vec![
+    ///     Parameter::from("Alice"),
+    ///     Parameter::from("Hello!")
+    /// ]);
+    /// 
+    /// // Using String
     /// let cmd = Command::new("character".to_string(), vec![
     ///     Parameter::from("Alice"),
     ///     Parameter::from("Hello!")
     /// ]);
     /// ```
-    pub fn new(name: String, params: Vec<Parameter>) -> Self {
-        Self { name, params }
+    pub fn new(name: impl Into<String>, params: Vec<Parameter>) -> Self {
+        Self { name: name.into(), params }
     }
 
     /// Create a text command representing regular content
@@ -227,9 +234,21 @@ impl Command {
     /// They use the special "@text" command name.
     /// 
     /// # Arguments
-    /// * `content` - The text content
-    pub fn new_text(content: String) -> Self {
-        Self::new("@text".to_string(), vec![Parameter::from(content)])
+    /// * `content` - The text content (can be `&str` or `String`)
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use koicore::command::Command;
+    /// 
+    /// // Using &str
+    /// let text_cmd = Command::new_text("Hello, world!");
+    /// 
+    /// // Using String
+    /// let text_cmd = Command::new_text("Hello, world!".to_string());
+    /// ```
+    pub fn new_text(content: impl Into<String>) -> Self {
+        Self::new("@text", vec![Parameter::from(content.into())])
     }
 
     /// Create an annotation command
@@ -238,9 +257,21 @@ impl Command {
     /// the command threshold. They use the special "@annotation" command name.
     /// 
     /// # Arguments
-    /// * `content` - The annotation content
-    pub fn new_annotation(content: String) -> Self {
-        Self::new("@annotation".to_string(), vec![Parameter::from(content)])
+    /// * `content` - The annotation content (can be `&str` or `String`)
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use koicore::command::Command;
+    /// 
+    /// // Using &str
+    /// let annotation_cmd = Command::new_annotation("This is an annotation");
+    /// 
+    /// // Using String
+    /// let annotation_cmd = Command::new_annotation("This is an annotation".to_string());
+    /// ```
+    pub fn new_annotation(content: impl Into<String>) -> Self {
+        Self::new("@annotation", vec![Parameter::from(content.into())])
     }
 
     /// Create a number command with integer value and additional parameters
@@ -250,10 +281,19 @@ impl Command {
     /// # Arguments
     /// * `value` - The integer value
     /// * `args` - Additional parameters
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use koicore::command::{Command, Parameter};
+    /// 
+    /// let num_cmd = Command::new_number(114, vec![]);
+    /// let num_cmd_with_args = Command::new_number(42, vec![Parameter::from("extra")]);
+    /// ```
     pub fn new_number(value: i64, args: Vec<Parameter>) -> Self {
         let mut all_args = vec![Parameter::from(value)];
         all_args.extend(args);
-        Self::new("@number".to_string(), all_args)
+        Self::new("@number", all_args)
     }
 
     /// Get the command name
@@ -288,13 +328,13 @@ mod tests {
 
     #[test]
     fn test_command_display() {
-        let cmd = Command::new("hello".to_string(), vec![Parameter::Basic("world".to_string().into())]);
+        let cmd = Command::new("hello", vec![Parameter::Basic("world".to_string().into())]);
         assert_eq!(format!("{}", cmd), "hello world");
     }
 
     #[test]
     fn test_command_display_text() {
-        let cmd = Command::new_text("hello world".to_string());
+        let cmd = Command::new_text("hello world");
         assert_eq!(format!("{}", cmd), "@text \"hello world\"");
     }
 

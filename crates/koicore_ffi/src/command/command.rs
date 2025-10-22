@@ -152,7 +152,7 @@ pub unsafe extern "C" fn KoiCommand_NewNumber(
 /// # Arguments
 /// * `command` - Command object pointer to free
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_Free(command: *mut KoiCommand) {
+pub unsafe extern "C" fn KoiCommand_Del(command: *mut KoiCommand) {
     if !command.is_null() {
         drop(unsafe { Box::from_raw(command as *mut Command) });
     }

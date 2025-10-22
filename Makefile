@@ -1,3 +1,9 @@
+all: build test
+
+.PHONY: doc
+doc:
+	cargo doc --workspace --no-deps
+
 .PHONY: build
 build:
 	cargo build --release --workspace
@@ -6,8 +12,11 @@ build:
 test:
 	cargo test
 
-ffi-test: clean
-	. scripts/ffi-test.sh
+.PHONY: ffi-test
+ffi-test: build
+	rm -f ./target/ffi-test/CMakeCache.txt
+	cmake -B ./target/ffi-test ./crates/koicore_ffi/tests/cxx_api
+	cmake --build ./target/ffi-test
 
 .PHONY: clean
 clean:

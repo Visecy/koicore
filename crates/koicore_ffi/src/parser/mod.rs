@@ -32,7 +32,7 @@ pub unsafe extern "C" fn KoiParser_New(
     let input: Box<KoiInputSource> = unsafe {
         Box::from_raw(input)
     };
-    let parser = Parser::new(input.inner, config.clone().into());
+    let parser = Parser::new(input.inner, config.into());
     Box::into_raw(Box::new(parser)) as *mut KoiParser
 }
 

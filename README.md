@@ -89,9 +89,8 @@ Another paragraph of text.
 ### Annotations
 Lines with multiple `#` characters are treated as annotations:
 ```text
-# This is an annotation
-## This is also an annotation
-### Multi-level annotations supported
+## This is an annotation
+### This is also an annotation
 ```
 
 ### Parameter Types
@@ -150,17 +149,18 @@ Each command can have multiple parameters of different types, allowing for flexi
 The `Command` struct represents parsed KoiLang commands:
 
 ```rust
-# use koicore::command::{Command, Parameter};
+use koicore::command::{Command, Parameter};
+
 # fn main() {
 // Create a simple command
-let cmd = Command::new("character".to_string(), vec![
+let cmd = Command::new("character", vec![
     Parameter::from("Alice"),
     Parameter::from("Hello, world!")
 ]);
 
 // Create text and annotation commands
-let text_cmd = Command::new_text("Narrative text".to_string());
-let annotation_cmd = Command::new_annotation("Annotation text".to_string());
+let text_cmd = Command::new_text("Narrative text");
+let annotation_cmd = Command::new_annotation("Annotation text");
 # }
 ```
 
@@ -168,13 +168,16 @@ let annotation_cmd = Command::new_annotation("Annotation text".to_string());
 Customize parsing behavior with `ParserConfig`:
 
 ```rust
-# use koicore::parser::ParserConfig;
+use koicore::parser::ParserConfig;
 # fn main() {
 // Default configuration (threshold = 1)
 let config = ParserConfig::default();
 
 // Custom threshold - require 2 # characters for commands
-let config = ParserConfig { command_threshold: 2 };
+let config = ParserConfig { 
+    command_threshold: 2,
+    skip_annotations: false 
+};
 # }
 ```
 
@@ -182,7 +185,8 @@ let config = ParserConfig { command_threshold: 2 };
 Support for various input sources:
 
 ```rust
-# use koicore::parser::{StringInputSource, FileInputSource};
+use koicore::parser::{StringInputSource, FileInputSource};
+
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 // Parse from string
 let input = StringInputSource::new("#test command");
@@ -209,7 +213,8 @@ This makes KoiLang files human-readable and easy to write, while your applicatio
 Process massive files efficiently:
 
 ```rust
-# use koicore::parser::{Parser, ParserConfig, StringInputSource};
+use koicore::parser::{Parser, ParserConfig, StringInputSource};
+
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 // For demonstration, using string input - in practice use FileInputSource
 let input = StringInputSource::new(r#"
@@ -233,7 +238,8 @@ while let Some(command) = parser.next_command()? {
 Handle various text encodings:
 
 ```rust
-# use koicore::parser::{Parser, ParserConfig, StringInputSource};
+use koicore::parser::{Parser, ParserConfig, StringInputSource};
+
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 // For demonstration, using string input with UTF-8 content
 let input = StringInputSource::new("#title \"Hello World\"");
@@ -252,7 +258,8 @@ while let Some(command) = parser.next_command()? {
 Comprehensive error reporting with context:
 
 ```rust
-# use koicore::parser::{Parser, ParserConfig, StringInputSource};
+use koicore::parser::{Parser, ParserConfig, StringInputSource};
+
 # fn main() {
 let input = StringInputSource::new("#invalid command syntax");
 let mut parser = Parser::new(input, ParserConfig::default());

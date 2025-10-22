@@ -26,16 +26,14 @@ fn test_parse_hello_world() {
     assert_eq!(
         cmd,
         Some(parser::Command::new(
-            "hello".to_string(),
-            vec![parser::Parameter::Basic(parser::Value::String(
-                "world".to_string()
-            ))]
+            "hello",
+            vec!["world".into()]
         ))
     );
     let text = parser.next_command().unwrap();
     assert_eq!(
         text,
-        Some(parser::Command::new_text("This is a text.".to_string()))
+        Some(parser::Command::new_text("This is a text."))
     );
 }
 
