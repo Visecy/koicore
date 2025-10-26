@@ -1,6 +1,8 @@
 use koicore::{command::{Command, CompositeValue, Parameter}, Value};
 use std::{ffi::{c_char, CStr}, ptr, slice};
 
+use crate::command::param::KoiParamType;
+
 use super::command::KoiCommand;
 
 /// Opaque handle for composite dict parameter
@@ -8,6 +10,19 @@ use super::command::KoiCommand;
 pub struct KoiCompositeDict {
     _data: (),
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+/// Create a new composite dict parameter
+///
+/// # Returns
+/// Pointer to the new composite dict parameter, or null on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_New() -> *mut KoiCompositeDict {
+    let param = Parameter::Composite(
+        "dict".to_string(),
+        CompositeValue::Dict(Vec::new())
+    );
+    Box::into_raw(Box::new(param)) as *mut KoiCompositeDict
 }
 
 /// Get composite dict parameter from command
@@ -43,13 +58,13 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeDict(
     }
 }
 
-/// Get composite dict parameter length
+/// Get number of entries in dict
 ///
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
 ///
 /// # Returns
-/// Number of key-value pairs in the dict, or 0 on error
+/// Number of entries in the dict, 0 on error
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCompositeDict_GetLength(dict: *mut KoiCompositeDict) -> usize {
     if dict.is_null() {
@@ -60,6 +75,209 @@ pub unsafe extern "C" fn KoiCompositeDict_GetLength(dict: *mut KoiCompositeDict)
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => entries.len(),
         _ => 0,
+    }
+}
+
+/// Remove entry from composite dict by key
+///
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+/// * `key` - Key name
+///
+/// # Returns
+/// 0 on success, non-zero on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_Remove(
+    dict: *mut KoiCompositeDict,
+    key: *const c_char,
+) -> i32 {
+    if dict.is_null() || key.is_null() {
+        return -1;
+    }
+    
+    let key_str = unsafe { CStr::from_ptr(key) };
+    let key_str = match key_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return -2,
+    };
+    
+    let param = unsafe { &mut *(dict as *mut Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::Dict(entries)) => {
+            let original_len = entries.len();
+            entries.retain(|(k, _)| k != key_str);
+            
+            if entries.len() == original_len {
+                // Key not found
+                return -3;
+            }
+            0
+        }
+        _ => -4,
+    }
+}
+
+/// Clear all entries from composite dict
+///
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+///
+/// # Returns
+/// 0 on success, non-zero on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_Clear(
+    dict: *mut KoiCompositeDict,
+) -> i32 {
+    if dict.is_null() {
+        return -1;
+    }
+    
+    let param = unsafe { &mut *(dict as *mut Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::Dict(entries)) => {
+            entries.clear();
+            0
+        }
+        _ => -3,
+    }
+}
+
+/// Free composite dict parameter
+///
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_Del(dict: *mut KoiCompositeDict) {
+    if dict.is_null() {
+        return;
+    }
+    
+    unsafe { drop(Box::from_raw(dict as *mut Parameter)) };
+}
+
+/// Set integer value in composite dict by key
+///
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+/// * `key` - Key name
+/// * `value` - Integer value to set
+///
+/// # Returns
+/// 0 on success, non-zero on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_SetIntValue(
+    dict: *mut KoiCompositeDict,
+    key: *const c_char,
+    value: i64,
+) -> i32 {
+    if dict.is_null() || key.is_null() {
+        return -1;
+    }
+    
+    let key_str = unsafe { CStr::from_ptr(key) };
+    let key_str = match key_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return -2,
+    };
+    
+    let param = unsafe { &mut *(dict as *mut Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::Dict(entries)) => {
+            if let Some((_, v)) = entries.iter_mut().find(|(k, _)| k == key_str) {
+                *v = Value::Int(value);
+                0
+            } else {
+                entries.push((key_str.to_string(), Value::Int(value)));
+                0
+            }
+        }
+        _ => -3,
+    }
+}
+
+/// Set float value in composite dict by key
+///
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+/// * `key` - Key name
+/// * `value` - Float value to set
+///
+/// # Returns
+/// 0 on success, non-zero on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_SetFloatValue(
+    dict: *mut KoiCompositeDict,
+    key: *const c_char,
+    value: f64,
+) -> i32 {
+    if dict.is_null() || key.is_null() {
+        return -1;
+    }
+    
+    let key_str = unsafe { CStr::from_ptr(key) };
+    let key_str = match key_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return -2,
+    };
+    
+    let param = unsafe { &mut *(dict as *mut Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::Dict(entries)) => {
+            if let Some((_, v)) = entries.iter_mut().find(|(k, _)| k == key_str) {
+                *v = Value::Float(value);
+                0
+            } else {
+                entries.push((key_str.to_string(), Value::Float(value)));
+                0
+            }
+        }
+        _ => -3,
+    }
+}
+
+/// Set string value in composite dict by key
+///
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+/// * `key` - Key name
+/// * `value` - String value to set
+///
+/// # Returns
+/// 0 on success, non-zero on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_SetStringValue(
+    dict: *mut KoiCompositeDict,
+    key: *const c_char,
+    value: *const c_char,
+) -> i32 {
+    if dict.is_null() || key.is_null() || value.is_null() {
+        return -1;
+    }
+    
+    let key_str = unsafe { CStr::from_ptr(key) };
+    let key_str = match key_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return -2,
+    };
+    
+    let value_str = unsafe { CStr::from_ptr(value) };
+    let value_str = match value_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return -3,
+    };
+    
+    let param = unsafe { &mut *(dict as *mut Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::Dict(entries)) => {
+            if let Some((_, v)) = entries.iter_mut().find(|(k, _)| k == key_str) {
+                *v = Value::String(value_str.to_string());
+                0
+            } else {
+                entries.push((key_str.to_string(), Value::String(value_str.to_string())));
+                0
+            }
+        }
+        _ => -4,
     }
 }
 
@@ -75,7 +293,7 @@ pub unsafe extern "C" fn KoiCompositeDict_GetLength(dict: *mut KoiCompositeDict)
 /// Actual key length (excluding null terminator), or required buffer size if insufficient
 /// Returns 0 on error
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCompositeDict_GetKey(
+pub unsafe extern "C" fn KoiCompositeDict_GetKeybyIndex(
     dict: *mut KoiCompositeDict,
     index: usize,
     buffer: *mut c_char,
@@ -94,18 +312,18 @@ pub unsafe extern "C" fn KoiCompositeDict_GetKey(
             
             let key = &entries[index].0;
             let key_bytes = key.as_bytes();
-    let key_len = key_bytes.len();
-    let required_size = key_len + 1;
-    
-    if buffer.is_null() || buffer_size < required_size {
+            let key_len = key_bytes.len();
+            let required_size = key_len + 1;
+            
+            if buffer.is_null() || buffer_size < required_size {
                 return required_size;
             }
             
             let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
-    buffer_slice[..key_len].copy_from_slice(key_bytes);
-    buffer_slice[key_len] = 0;
-    
-    required_size
+            buffer_slice[..key_len].copy_from_slice(key_bytes);
+            buffer_slice[key_len] = 0;
+            
+            required_size
         }
         _ => 0,
     }
@@ -118,9 +336,10 @@ pub unsafe extern "C" fn KoiCompositeDict_GetKey(
 /// * `index` - Entry index
 ///
 /// # Returns
-/// Required buffer size (including null terminator), or 0 on error
+/// Required buffer size (including null terminator)
+/// Returns 0 on error
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCompositeDict_GetKeyLen(
+pub unsafe extern "C" fn KoiCompositeDict_GetKeyLenByIndex(
     dict: *mut KoiCompositeDict,
     index: usize,
 ) -> usize {
@@ -135,20 +354,96 @@ pub unsafe extern "C" fn KoiCompositeDict_GetKeyLen(
                 return 0;
             }
             
-            entries[index].0.len() + 1
+            let key = &entries[index].0;
+            key.len() + 1
         }
         _ => 0,
     }
 }
 
-/// Get integer value from dict by key
+/// Get dict value type by index
+/// 
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+/// * `index` - Entry index
+///
+/// # Returns
+/// Value type as KoiParamType enum value
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_GetValueTypeByIndex(
+    dict: *mut KoiCompositeDict,
+    index: usize,
+) -> i32 {
+    if dict.is_null() {
+        return KoiParamType::Invalid as i32;
+    }
+    
+    let param = unsafe { &*(dict as *const Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::Dict(entries)) => {
+           if index >= entries.len() {
+                KoiParamType::Invalid as i32
+            } else {
+                match &entries[index].1 {
+                    Value::Int(_) => KoiParamType::BasicInt as i32,
+                    Value::Float(_) => KoiParamType::BasicFloat as i32,
+                    Value::String(_) => KoiParamType::BasicString as i32,
+                }
+            }
+        }
+        _ => KoiParamType::Invalid as i32,
+    }
+}
+
+/// Get value type from composite dict by key
+/// 
+/// # Arguments
+/// * `dict` - Composite dict parameter pointer
+/// * `key` - Key name
+///
+/// # Returns
+/// Value type as KoiParamType enum value
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeDict_GetValueType(
+    dict: *mut KoiCompositeDict,
+    key: *const c_char,
+) -> i32 {
+    if dict.is_null() || key.is_null() {
+        return KoiParamType::Invalid as i32;
+    }
+    
+    let key_str = unsafe { CStr::from_ptr(key) };
+    let key_str = match key_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return KoiParamType::Invalid as i32,
+    };
+    
+    let param = unsafe { &*(dict as *const Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::Dict(entries)) => {
+            if let Some((_, value)) = entries.iter().find(|(k, _)| k == key_str) {
+                match value {
+                    Value::Int(_) => KoiParamType::BasicInt as i32,
+                    Value::Float(_) => KoiParamType::BasicFloat as i32,
+                    Value::String(_) => KoiParamType::BasicString as i32,
+                }
+            } else {
+                KoiParamType::Invalid as i32
+            }
+        }
+        _ => KoiParamType::Invalid as i32,
+    }
+}
+
+/// Get integer value from composite dict by key
 ///
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
-/// * `key` - Key to search for (null-terminated C string)
+/// * `key` - Key name
+/// * `out_value` - Pointer to store integer value
 ///
 /// # Returns
-/// 1 on success, 0 on error or type mismatch
+/// 0 on success, non-zero on error or type mismatch
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCompositeDict_GetIntValue(
     dict: *mut KoiCompositeDict,
@@ -156,42 +451,43 @@ pub unsafe extern "C" fn KoiCompositeDict_GetIntValue(
     out_value: *mut i64,
 ) -> i32 {
     if dict.is_null() || key.is_null() || out_value.is_null() {
-        return 0;
+        return -1;
     }
     
-    let key_str = match unsafe { CStr::from_ptr(key) }.to_str() {
-        Ok(s) => s.to_string(),
-        Err(_) => return 0,
+    let key_str = unsafe { CStr::from_ptr(key) };
+    let key_str = match key_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return -2,
     };
     
     let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
-            for (k, v) in entries {
-                if *k == key_str {
-                    match v {
-                        Value::Int(value) => {
-                            unsafe { *out_value = *value };
-                            return 1;
-                        }
-                        _ => return 0,
+            if let Some((_, value)) = entries.iter().find(|(k, _)| k == key_str) {
+                match value {
+                    Value::Int(v) => {
+                        unsafe { *out_value = *v };
+                        0
                     }
+                    _ => -3,
                 }
+            } else {
+                -2 // Key not found
             }
-            0
         }
-        _ => 0,
+        _ => -4,
     }
 }
 
-/// Get float value from dict by key
+/// Get float value from composite dict by key
 ///
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
-/// * `key` - Key to search for (null-terminated C string)
+/// * `key` - Key name
+/// * `out_value` - Pointer to store float value
 ///
 /// # Returns
-/// 1 on success, 0 on error or type mismatch
+/// 0 on success, non-zero on error or type mismatch
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCompositeDict_GetFloatValue(
     dict: *mut KoiCompositeDict,
@@ -199,39 +495,39 @@ pub unsafe extern "C" fn KoiCompositeDict_GetFloatValue(
     out_value: *mut f64,
 ) -> i32 {
     if dict.is_null() || key.is_null() || out_value.is_null() {
-        return 0;
+        return -1;
     }
     
-    let key_str = match unsafe { CStr::from_ptr(key) }.to_str() {
-        Ok(s) => s.to_string(),
-        Err(_) => return 0,
+    let key_str = unsafe { CStr::from_ptr(key) };
+    let key_str = match key_str.to_str() {
+        Ok(s) => s,
+        Err(_) => return -2,
     };
     
     let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
-            for (k, v) in entries {
-                if *k == key_str {
-                    match v {
-                        Value::Float(value) => {
-                            unsafe { *out_value = *value };
-                            return 1;
-                        }
-                        _ => return 0,
+            if let Some((_, value)) = entries.iter().find(|(k, _)| k == key_str) {
+                match value {
+                    Value::Float(v) => {
+                        unsafe { *out_value = *v };
+                        0
                     }
+                    _ => -3,
                 }
+            } else {
+                -2 // Key not found
             }
-            0
         }
-        _ => 0,
+        _ => -4,
     }
 }
 
-/// Get string value from dict by key into provided buffer
+/// Get string value from composite dict by key into provided buffer
 ///
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
-/// * `key` - Key to search for (null-terminated C string)
+/// * `key` - Key name
 /// * `buffer` - Buffer for string output
 /// * `buffer_size` - Buffer size
 ///
@@ -249,47 +545,47 @@ pub unsafe extern "C" fn KoiCompositeDict_GetStringValue(
         return 0;
     }
     
-    let key_str = match unsafe { CStr::from_ptr(key) }.to_str() {
-        Ok(s) => s.to_string(),
+    let key_str = unsafe { CStr::from_ptr(key) };
+    let key_str = match key_str.to_str() {
+        Ok(s) => s,
         Err(_) => return 0,
     };
     
     let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
-            for (k, v) in entries {
-                if *k == key_str {
-                    match v {
-                        Value::String(value) => {
-                            let value_bytes = value.as_bytes();
-                            let value_len = value_bytes.len();
-                            let required_size = value_len + 1;
-                            
-                            if buffer.is_null() || buffer_size < required_size {
-                                return required_size;
-                            }
-                            
-                            let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
-                            buffer_slice[..value_len].copy_from_slice(value_bytes);
-                            buffer_slice[value_len] = 0;
-                            
+            if let Some((_, value)) = entries.iter().find(|(k, _)| k == key_str) {
+                match value {
+                    Value::String(v) => {
+                        let v_bytes = v.as_bytes();
+                        let v_len = v_bytes.len();
+                        let required_size = v_len + 1;
+                        
+                        if buffer.is_null() || buffer_size < required_size {
                             return required_size;
                         }
-                        _ => return 0,
+                        
+                        let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
+                        buffer_slice[..v_len].copy_from_slice(v_bytes);
+                        buffer_slice[v_len] = 0;
+                        
+                        required_size
                     }
+                    _ => 0,
                 }
+            } else {
+                0 // Key not found, return 0 to indicate error
             }
-            0
         }
         _ => 0,
     }
 }
 
-/// Get string value length from dict by key
+/// Get string value length from composite dict by key
 ///
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
-/// * `key` - Key to search for (null-terminated C string)
+/// * `key` - Key name
 ///
 /// # Returns
 /// Required buffer size (including null terminator), or 0 on error or type mismatch
@@ -302,23 +598,23 @@ pub unsafe extern "C" fn KoiCompositeDict_GetStringValueLen(
         return 0;
     }
     
-    let key_str = match unsafe { CStr::from_ptr(key) }.to_str() {
-        Ok(s) => s.to_string(),
+    let key_str = unsafe { CStr::from_ptr(key) };
+    let key_str = match key_str.to_str() {
+        Ok(s) => s,
         Err(_) => return 0,
     };
     
     let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
-            for (k, v) in entries {
-                if *k == key_str {
-                    match v {
-                        Value::String(value) => return value.len() + 1,
-                        _ => return 0,
-                    }
+            if let Some((_, value)) = entries.iter().find(|(k, _)| k == key_str) {
+                match value {
+                    Value::String(v) => v.len() + 1,
+                    _ => 0,
                 }
+            } else {
+                0 // Key not found, return 0 to indicate error
             }
-            0
         }
         _ => 0,
     }

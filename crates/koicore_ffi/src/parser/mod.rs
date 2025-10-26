@@ -52,6 +52,9 @@ pub unsafe extern "C" fn KoiParser_NextCommand(
     }
 
     let parser = unsafe { &mut *parser };
+    if parser.eof {
+        return ptr::null_mut();
+    }
     let inner = &mut parser.inner;
     let command = inner.next_command();
     match command {

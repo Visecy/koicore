@@ -482,7 +482,7 @@ int32_t KoiCompositeList_GetValueType(struct KoiCompositeList *list, uintptr_t i
  * * `out_value` - Pointer to store integer value
  *
  * # Returns
- * 1 on success, 0 on error or type mismatch
+ * 0 on success, non-zero on error or type mismatch
  */
 int32_t KoiCompositeList_GetIntValue(struct KoiCompositeList *list,
                                      uintptr_t index,
@@ -497,7 +497,7 @@ int32_t KoiCompositeList_GetIntValue(struct KoiCompositeList *list,
  * * `out_value` - Pointer to store float value
  *
  * # Returns
- * 1 on success, 0 on error or type mismatch
+ * 0 on success, non-zero on error or type mismatch
  */
 int32_t KoiCompositeList_GetFloatValue(struct KoiCompositeList *list,
                                        uintptr_t index,
@@ -509,7 +509,8 @@ int32_t KoiCompositeList_GetFloatValue(struct KoiCompositeList *list,
  * # Arguments
  * * `list` - Composite list parameter pointer
  * * `index` - Value index
- * * `out_value` - Pointer to store string value
+ * * `buffer` - Buffer for string output
+ * * `buffer_size` - Buffer size
  *
  * # Returns
  * Actual string length (excluding null terminator), or required buffer size if insufficient
@@ -517,7 +518,7 @@ int32_t KoiCompositeList_GetFloatValue(struct KoiCompositeList *list,
  */
 uintptr_t KoiCompositeList_GetStringValue(struct KoiCompositeList *list,
                                           uintptr_t index,
-                                          char *out_value,
+                                          char *buffer,
                                           uintptr_t buffer_size);
 
 /**
@@ -528,9 +529,136 @@ uintptr_t KoiCompositeList_GetStringValue(struct KoiCompositeList *list,
  * * `index` - Value index
  *
  * # Returns
- * Required buffer size (including null terminator), or 0 on error or type mismatch
+ * Required buffer size (including null terminator)
+ * Returns 0 on error or type mismatch
  */
 uintptr_t KoiCompositeList_GetStringValueLen(struct KoiCompositeList *list, uintptr_t index);
+
+/**
+ * Create a new empty composite list
+ *
+ * # Returns
+ * Pointer to new composite list parameter, or null on error
+ */
+struct KoiCompositeList *KoiCompositeList_New(void);
+
+/**
+ * Add integer value to composite list
+ *
+ * # Arguments
+ * * `list` - Composite list parameter pointer
+ * * `value` - Integer value to add
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_AddIntValue(struct KoiCompositeList *list, int64_t value);
+
+/**
+ * Add float value to composite list
+ *
+ * # Arguments
+ * * `list` - Composite list parameter pointer
+ * * `value` - Float value to add
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_AddFloatValue(struct KoiCompositeList *list, double value);
+
+/**
+ * Add string value to composite list
+ *
+ * # Arguments
+ * * `list` - Composite list parameter pointer
+ * * `value` - String value to add (null-terminated C string)
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_AddStringValue(struct KoiCompositeList *list, const char *value);
+
+/**
+ * Set integer value in composite list by index
+ *
+ * # Arguments
+ * * `list` - Composite list parameter pointer
+ * * `index` - Value index
+ * * `value` - New integer value
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_SetIntValue(struct KoiCompositeList *list, uintptr_t index, int64_t value);
+
+/**
+ * Set float value in composite list by index
+ *
+ * # Arguments
+ * * `list` - Composite list parameter pointer
+ * * `index` - Value index
+ * * `value` - New float value
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_SetFloatValue(struct KoiCompositeList *list,
+                                       uintptr_t index,
+                                       double value);
+
+/**
+ * Set string value in composite list by index
+ *
+ * # Arguments
+ * * `list` - Composite list parameter pointer
+ * * `index` - Value index
+ * * `value` - New string value (null-terminated C string)
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_SetStringValue(struct KoiCompositeList *list,
+                                        uintptr_t index,
+                                        const char *value);
+
+/**
+ * Remove value from composite list by index
+ *
+ * # Arguments
+ * * `list` - Composite list parameter pointer
+ * * `index` - Value index
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_RemoveValue(struct KoiCompositeList *list, uintptr_t index);
+
+/**
+ * Clear all values from composite list
+ *
+ * # Arguments
+ * * `list` - Composite list parameter pointer
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_Clear(struct KoiCompositeList *list);
+
+/**
+ * Free composite list parameter
+ *
+ * # Arguments
+ * * `list` - Composite list parameter pointer
+ */
+void KoiCompositeList_Del(struct KoiCompositeList *list);
+
+/**
+ * Create a new composite dict parameter
+ *
+ * # Returns
+ * Pointer to the new composite dict parameter, or null on error
+ */
+struct KoiCompositeDict *KoiCompositeDict_New(void);
 
 /**
  * Get composite dict parameter from command
@@ -545,15 +673,89 @@ uintptr_t KoiCompositeList_GetStringValueLen(struct KoiCompositeList *list, uint
 struct KoiCompositeDict *KoiCommand_GetCompositeDict(struct KoiCommand *command, uintptr_t index);
 
 /**
- * Get composite dict parameter length
+ * Get number of entries in dict
  *
  * # Arguments
  * * `dict` - Composite dict parameter pointer
  *
  * # Returns
- * Number of key-value pairs in the dict, or 0 on error
+ * Number of entries in the dict, 0 on error
  */
 uintptr_t KoiCompositeDict_GetLength(struct KoiCompositeDict *dict);
+
+/**
+ * Remove entry from composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_Remove(struct KoiCompositeDict *dict, const char *key);
+
+/**
+ * Clear all entries from composite dict
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_Clear(struct KoiCompositeDict *dict);
+
+/**
+ * Free composite dict parameter
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ */
+void KoiCompositeDict_Del(struct KoiCompositeDict *dict);
+
+/**
+ * Set integer value in composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ * * `value` - Integer value to set
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_SetIntValue(struct KoiCompositeDict *dict, const char *key, int64_t value);
+
+/**
+ * Set float value in composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ * * `value` - Float value to set
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_SetFloatValue(struct KoiCompositeDict *dict,
+                                       const char *key,
+                                       double value);
+
+/**
+ * Set string value in composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ * * `value` - String value to set
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_SetStringValue(struct KoiCompositeDict *dict,
+                                        const char *key,
+                                        const char *value);
 
 /**
  * Get dict key by index into provided buffer
@@ -568,10 +770,10 @@ uintptr_t KoiCompositeDict_GetLength(struct KoiCompositeDict *dict);
  * Actual key length (excluding null terminator), or required buffer size if insufficient
  * Returns 0 on error
  */
-uintptr_t KoiCompositeDict_GetKey(struct KoiCompositeDict *dict,
-                                  uintptr_t index,
-                                  char *buffer,
-                                  uintptr_t buffer_size);
+uintptr_t KoiCompositeDict_GetKeybyIndex(struct KoiCompositeDict *dict,
+                                         uintptr_t index,
+                                         char *buffer,
+                                         uintptr_t buffer_size);
 
 /**
  * Get dict key length by index
@@ -581,44 +783,71 @@ uintptr_t KoiCompositeDict_GetKey(struct KoiCompositeDict *dict,
  * * `index` - Entry index
  *
  * # Returns
- * Required buffer size (including null terminator), or 0 on error
+ * Required buffer size (including null terminator)
+ * Returns 0 on error
  */
-uintptr_t KoiCompositeDict_GetKeyLen(struct KoiCompositeDict *dict, uintptr_t index);
+uintptr_t KoiCompositeDict_GetKeyLenByIndex(struct KoiCompositeDict *dict, uintptr_t index);
 
 /**
- * Get integer value from dict by key
+ * Get dict value type by index
  *
  * # Arguments
  * * `dict` - Composite dict parameter pointer
- * * `key` - Key to search for (null-terminated C string)
+ * * `index` - Entry index
  *
  * # Returns
- * 1 on success, 0 on error or type mismatch
+ * Value type as KoiParamType enum value
+ */
+int32_t KoiCompositeDict_GetValueTypeByIndex(struct KoiCompositeDict *dict, uintptr_t index);
+
+/**
+ * Get value type from composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ *
+ * # Returns
+ * Value type as KoiParamType enum value
+ */
+int32_t KoiCompositeDict_GetValueType(struct KoiCompositeDict *dict, const char *key);
+
+/**
+ * Get integer value from composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ * * `out_value` - Pointer to store integer value
+ *
+ * # Returns
+ * 0 on success, non-zero on error or type mismatch
  */
 int32_t KoiCompositeDict_GetIntValue(struct KoiCompositeDict *dict,
                                      const char *key,
                                      int64_t *out_value);
 
 /**
- * Get float value from dict by key
+ * Get float value from composite dict by key
  *
  * # Arguments
  * * `dict` - Composite dict parameter pointer
- * * `key` - Key to search for (null-terminated C string)
+ * * `key` - Key name
+ * * `out_value` - Pointer to store float value
  *
  * # Returns
- * 1 on success, 0 on error or type mismatch
+ * 0 on success, non-zero on error or type mismatch
  */
 int32_t KoiCompositeDict_GetFloatValue(struct KoiCompositeDict *dict,
                                        const char *key,
                                        double *out_value);
 
 /**
- * Get string value from dict by key into provided buffer
+ * Get string value from composite dict by key into provided buffer
  *
  * # Arguments
  * * `dict` - Composite dict parameter pointer
- * * `key` - Key to search for (null-terminated C string)
+ * * `key` - Key name
  * * `buffer` - Buffer for string output
  * * `buffer_size` - Buffer size
  *
@@ -632,11 +861,11 @@ uintptr_t KoiCompositeDict_GetStringValue(struct KoiCompositeDict *dict,
                                           uintptr_t buffer_size);
 
 /**
- * Get string value length from dict by key
+ * Get string value length from composite dict by key
  *
  * # Arguments
  * * `dict` - Composite dict parameter pointer
- * * `key` - Key to search for (null-terminated C string)
+ * * `key` - Key name
  *
  * # Returns
  * Required buffer size (including null terminator), or 0 on error or type mismatch
@@ -651,6 +880,24 @@ struct KoiCommand *KoiParser_NextCommand(struct KoiParser *parser);
 
 struct KoiParserError *KoiParser_Error(struct KoiParser *parser);
 
+void KoiParserError_Del(struct KoiParserError *_this);
+
+uintptr_t KoiParserError_Format(const struct KoiParserError *_this,
+                                char *buffer,
+                                uintptr_t buffer_size);
+
+uintptr_t KoiParserError_FormatLen(const struct KoiParserError *_this);
+
+uintptr_t KoiParserError_GetMessage(const struct KoiParserError *_this,
+                                    char *buffer,
+                                    uintptr_t buffer_size);
+
+uintptr_t KoiParserError_GetMessageLen(const struct KoiParserError *_this);
+
+int32_t KoiParserError_GetTracebackPosition(const struct KoiParserError *_this,
+                                            uintptr_t *lineno,
+                                            uintptr_t *column);
+
 struct KoiInputSource *KoiInputSource_FromVTable(const struct KoiTextInputSourceVTable *vtable,
                                                  void *user_data);
 
@@ -661,6 +908,8 @@ struct KoiInputSource *KoiInputSource_FromFile(const char *path);
 struct KoiInputSource *KoiInputSource_FromFileAndEncoding(const char *path,
                                                           const char *encoding,
                                                           enum KoiFileInputEncodingStrategy encoding_strategy);
+
+void KoiInputSource_Del(struct KoiInputSource *input);
 
 void KoiParserConfig_Init(struct KoiParserConfig *config);
 

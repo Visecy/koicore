@@ -174,10 +174,7 @@ use koicore::parser::ParserConfig;
 let config = ParserConfig::default();
 
 // Custom threshold - require 2 # characters for commands
-let config = ParserConfig { 
-    command_threshold: 2,
-    skip_annotations: false 
-};
+let config = ParserConfig::default().with_command_threshold(2);
 # }
 ```
 

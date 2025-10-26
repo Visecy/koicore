@@ -169,3 +169,11 @@ pub unsafe extern "C" fn KoiInputSource_FromFileAndEncoding(
     let source_wrapper = Box::new(KoiInputSource { inner: input_source });
     Box::into_raw(source_wrapper) as *mut KoiInputSource
 }
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiInputSource_Del(input: *mut KoiInputSource) {
+    if input.is_null() {
+        return;
+    }
+    unsafe { drop(Box::from_raw(input)); }
+}
