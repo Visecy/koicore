@@ -18,6 +18,11 @@ ffi-test: build
 	cmake -B ./target/ffi-test ./crates/koicore_ffi/tests/cxx_api
 	cmake --build ./target/ffi-test
 
+.PHONY: publish
+publish:
+	cargo publish || echo "Failed to publish root crate, continuing..."
+	cargo publish --manifest-path crates/koicore_ffi/Cargo.toml || echo "Failed to publish koicore_ffi crate, continuing..."
+
 .PHONY: clean
 clean:
 	cargo clean

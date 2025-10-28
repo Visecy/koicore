@@ -15,6 +15,6 @@ crate-type = ["cdylib", "staticlib"]
 cbindgen = "0.29"
 
 [dependencies]
-koicore = { path = "../.." }
+koicore = { path = "../..", version = "0.1.1" }
 encoding_rs = "0.8"
 errno = "0.3.14"
