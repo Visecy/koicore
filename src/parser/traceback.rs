@@ -130,15 +130,15 @@ impl TracebackEntry {
         }
     }
 
-    pub(super) fn build_error_trace<I: core::ops::Deref<Target = str> + Input>(input: I, line: usize, error: &NomErrorNode<I>) -> Self {
+    pub(super) fn build_error_trace<I: core::ops::Deref<Target = str> + Input>(input: I, line: usize, column_offset: usize, error: &NomErrorNode<I>) -> Self {
         let (line_offset, column, _) = Self::extract_position_info(&input, &error.input);
         let context = Self::format_error_kind(&error.kind);
 
-        let children = error.children.iter().map(|child| Self::build_error_trace(input.clone(), line, child)).collect();
+        let children = error.children.iter().map(|child| Self::build_error_trace(input.clone(), line, column_offset, child)).collect();
 
         TracebackEntry {
             lineno : line + line_offset - 1,
-            column_range: (column, column + error.input.len()),
+            column_range: (column + column_offset, column + error.input.len() + column_offset),
             context,
             children,
         }
@@ -233,7 +233,7 @@ mod tests {
     fn test_traceback_entry_convert_error() {
         let input = "line1\nline2\nline3";
         let error = NomErrorNode::from_char(input, 'a');
-        let entry = TracebackEntry::build_error_trace(input, 1, &error);
+        let entry = TracebackEntry::build_error_trace(input, 1, 0, &error);
         assert_eq!(entry.lineno, 1);
         assert_eq!(entry.column_range, (1, input.len() + 1));
         assert_eq!(entry.context, "nom.char<'a'>");
@@ -249,7 +249,7 @@ mod tests {
         println!("Parser error traceback: {:#?}", node);
         match node {
             nom::Err::Error(e) | nom::Err::Failure(e) => {
-                let traceback = TracebackEntry::build_error_trace(input, 1, &e);
+                let traceback = TracebackEntry::build_error_trace(input, 1, 0, &e);
                 println!("Converted traceback: {:#?}", traceback);
             }
             _ => unreachable!()
@@ -262,7 +262,7 @@ mod tests {
         println!("Parser error traceback: {:#?}", node);
         match node {
             nom::Err::Error(e) | nom::Err::Failure(e) => {
-                let traceback = TracebackEntry::build_error_trace(input, 1, &e);
+                let traceback = TracebackEntry::build_error_trace(input, 1, 0, &e);
                 println!("Converted traceback: {:#?}", traceback);
             }
             _ => unreachable!()
@@ -275,7 +275,7 @@ mod tests {
         println!("Parser error traceback: {:#?}", node);
         match node {
             nom::Err::Error(e) | nom::Err::Failure(e) => {
-                let traceback = TracebackEntry::build_error_trace(input, 1, &e);
+                let traceback = TracebackEntry::build_error_trace(input, 1, 0, &e);
                 println!("Converted traceback: {:#?}", traceback);
             }
             _ => unreachable!()

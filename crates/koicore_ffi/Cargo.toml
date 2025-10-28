@@ -1,11 +1,20 @@
 [package]
 name = "koicore_ffi"
 description = "FFI bindings for koicore"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "MIT"
 authors = ["Ovizro <ovizro@visecy.org>"]
 repository = "https://github.com/Visecy/koicore"
 keywords = ["KoiLang", "parser", "markup-language"]
 
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[build-dependencies]
+cbindgen = "0.29"
+
 [dependencies]
+koicore = { path = "../.." }
+encoding_rs = "0.8"
+errno = "0.3.14"
