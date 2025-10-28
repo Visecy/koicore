@@ -1,0 +1,123 @@
+#name "オルガの死"\
+                        by("喜羊羊")
+
+#background Corridor
+    #camera from(right)
+
+    #character "ライド"
+        団長！車の用意できました！
+    #character "オルガ"
+        おう！じゃあな
+
+    #camera on("クーデリア")
+    #character "オルガ"
+        #action face to("クーデリア")
+        はい、お気をつけて
+    #character "クーデリア"
+        はい、お気をつけて
+
+#background Street
+    #character "ライド"
+        なんか靜かですね。街の中にはギャラルホルンもいないし本部とはえらい違いだ。
+    #camera on("チャド")
+    #character "オルガ"
+        ああ。火星の戦力は軒並み向こうに回してんのかもな。
+
+#background Corridor
+    #character chr("オルガ", "ライド")
+        #action face direction(right)
+        #action walk to("チャド")
+
+    #character "ライド"
+        まっそんなのもう関係ないですけどね！
+    #character "オルガ"
+        上機嫌だな。
+    #character "ライド"
+        そりゃそうですよ！みんな助かるし、タカキも頑張ってたし、俺も頑張らないと！
+
+    #character "オルガ"
+        #action smile
+        ああ。（そうだ。俺たちが今まで積み上げてきたもんは全部無駄じゃなかった。これからも俺たちが立ち止まらないかぎり道は続く）
+
+#background Street
+    #character "オルガ"
+        俺たちにはたどりつく場所なんていらねぇ。ただ進み続けるだけでいい。止まんねぇかぎり、道は続く
+    #character chr("オルガ", "ライド")
+        #action walk_stop
+
+    #move Car into(Street) direction(from: left_edge, to: center)
+    #playsound brake
+
+    #character chr("オルガ", "チャド")
+        #action face to(Car)
+
+    #camera on(Car) view(back)
+    #character chr(object: people, source: Car)
+        #action shoot
+    #character "チャド"
+        #action get_hit
+        ぐわっ！
+
+    #camera on("ライド")
+    #character "オルガ"
+        #action protect target("ライド")
+        #action get_hit
+        ぐっ！うおぉ～～！
+
+    #character chr(object: people, source: Car)
+        #action get_hit
+        うおっ！あっ！
+
+    #move Car out(Street) direction(from: center, to: right_edge)
+    
+    #camera on("オルガ")
+    #character "ライド"
+        だ……団長……。あっ……あぁ……。
+    #character "オルガ"
+        #action bleed
+    #camera on(object: blood, source: "オルガ")
+
+    #camera on("チャド", "オルガ", "ライド")
+    #character "オルガ"
+        なんて聲出してやがる……ライド。
+
+    #playsound freesia\
+        comment("kibo no hana~")
+
+    #character "オルガ"
+        #action stand_up speed(slowly)
+
+    #character "ライド"
+        そんな……俺なんかのために……。
+    #character "オルガ"
+        俺は鉄華団団長オルガ・イツカだぞ。こんくれぇなんてこたぁねぇ。
+    #character "チャド"
+        #action shed_tear
+
+    #character "ライド"
+        でも！
+    #character "オルガ"
+        いいから行くぞ。皆が待ってんだ。それに……。（ミカ、やっと分かったんだ。俺たちにはたどりつく場所なんていらねぇ。ただ進み続けるだけでいい。止まんねぇかぎり、道は続く）
+
+#background Memory
+    #character "三日月"
+        謝ったら許さない。
+    #character "オルガ"
+        ああ分かってる。
+
+        #camera on("オルガ")
+        俺は止まんねぇからよ、お前らが止まんねぇかぎり、その先に俺はいるぞ！だからよ、止まるんじゃねぇぞ……。
+
+#background Street
+    #character "オルガ"
+        俺は止まんねぇからよ、お前らが止まんねぇかぎり、その先に俺はいるぞ！だからよ、止まるんじゃねぇぞ……。
+
+        #camera on(Sky)
+        #action walk_stop
+        #action fall_down
+    #camera on(object: blood, source: "オルガ") view(up)
+    #character "オルガ"
+        ……だからよ、止まるんじゃねぇぞ……。
+        #camera on(object: finger, source: "オルガ")
+    #character "三日月"
+        オルガ？

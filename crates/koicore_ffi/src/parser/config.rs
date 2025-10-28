@@ -31,6 +31,19 @@ impl From<&KoiParserConfig> for ParserConfig {
     }
 }
 
+/// Initialize a KoiParserConfig with default values
+///
+/// This function initializes a KoiParserConfig structure with sensible default values:
+/// - command_threshold: 1 (lines starting with # are commands)
+/// - skip_annotations: false (annotation lines are included in output)
+/// - convert_number_command: true (numeric commands are converted to special commands)
+///
+/// # Arguments
+/// * `config` - Pointer to the KoiParserConfig structure to initialize
+///
+/// # Safety
+/// The config pointer must be a valid pointer to a KoiParserConfig structure.
+/// If config is NULL, this function does nothing.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiParserConfig_Init(config: *mut KoiParserConfig) {
     if config.is_null() {

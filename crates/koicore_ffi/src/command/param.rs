@@ -6,14 +6,24 @@ use std::slice;
 use super::command::KoiCommand;
 
 /// Unified parameter type enumeration
+///
+/// This enumeration represents all possible parameter types in KoiLang commands.
+/// It includes both basic types (int, float, string) and composite types (single, list, dict).
 #[repr(C)]
 pub enum KoiParamType {
+    /// 64-bit signed integer value
     BasicInt = 0,
+    /// 64-bit floating point value
     BasicFloat = 1,
-    BasicString = 2,  // Merged Literal and String into single String type
+    /// UTF-8 string value (merged Literal and String into single String type)
+    BasicString = 2,
+    /// Single composite value
     CompositeSingle = 3,
+    /// List composite value
     CompositeList = 4,
+    /// Dictionary composite value
     CompositeDict = 5,
+    /// Invalid or unknown type
     Invalid = -1,
 }
 

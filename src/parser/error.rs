@@ -342,11 +342,10 @@ impl fmt::Display for ParseError {
 
         writeln!(f)?;
         // Display the traceback tree
-        if let Some(traceback) = &self.traceback {
-            if !traceback.context.is_empty() {
+        if let Some(traceback) = &self.traceback
+            && !traceback.context.is_empty() {
                 traceback.write_tree(f, "    ", false)?;
             }
-        }
         
         Ok(())
     }

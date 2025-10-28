@@ -4,6 +4,10 @@ use std::slice;
 use std::ptr;
 
 /// Opaque handle for KoiLang command
+///
+/// This structure represents a command in the KoiLang language. Commands can be
+/// regular commands with a name and parameters, text commands, annotation commands,
+/// or number commands. The actual implementation is hidden to maintain ABI stability.
 #[repr(C)]
 pub struct KoiCommand {
     _data: (),

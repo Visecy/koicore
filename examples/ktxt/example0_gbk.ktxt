@@ -1,0 +1,121 @@
+#name "奥尔加之死"\
+                        by("喜羊羊")
+
+#background Corridor
+    #camera from(right)
+
+    #character "莱德马斯"
+        真是安静啊，街上也没有加拉尔号角，跟总部真是天差地别啊
+    #character "奥尔加伊兹卡"
+        可能是他们把火星的战力都调到了那里去了
+
+    #camera on("库德丽雅")
+    #character "奥尔加伊兹卡"
+        #action face to("库德丽雅")
+        好的，你要小心
+    #character "库德丽雅"
+        好的，你要小心
+
+#background Street
+    #character "莱德马斯"
+        不过这也和我们没关系了
+    #camera on("查德")
+    #character "奥尔加伊兹卡"
+        看你那高兴的样子
+
+#background Corridor
+    #character chr("奥尔加伊兹卡", "莱德马斯")
+        #action face direction(right)
+        #action walk to("查德")
+
+    #character "莱德马斯"
+        那是当然的了，大家也有救了，高木又那么努力，我也要加油了加把劲骑士
+    #character "奥尔加伊兹卡"
+        没错，我们至今为止所做的一切不是徒劳的，只要我们不止步，前方就会有路！
+
+    #character "奥尔加伊兹卡"
+        #action smile
+        没错。（我们至今为止所做的一切不是徒劳的，只要我们不止步，前方就会有路）
+
+#background Street
+    #character "奥尔加伊兹卡"
+        我们不需要目的地，只要继续前进就好了，只要不停下脚步，道路就会不断延伸
+    #character chr("奥尔加伊兹卡", "莱德马斯")
+        #action walk_stop
+
+    #move Car into(Street) direction(from: left_edge, to: center)
+    #playsound brake
+
+    #character chr("奥尔加伊兹卡", "查德")
+        #action face to(Car)
+
+    #camera on(Car) view(back)
+    #character chr(object: people, source: Car)
+        #action shoot
+    #character "查德"
+        #action get_hit
+        呃啊！
+
+    #camera on("莱德马斯")
+    #character "奥尔加伊兹卡"
+        #action protect target("莱德马斯")
+        #action get_hit
+        呃！喔啊啊啊啊啊啊！
+
+    #character chr(object: people, source: Car)
+        #action get_hit
+        喔啊！啊！
+
+    #move Car out(Street) direction(from: center, to: right_edge)
+    
+    #camera on("奥尔加伊兹卡")
+    #character "莱德马斯"
+        团……团长……。啊……啊啊……。
+    #character "奥尔加伊兹卡"
+        #action bleed
+    #camera on(object: blood, source: "奥尔加伊兹卡")
+
+    #camera on("查德", "奥尔加伊兹卡", "莱德马斯")
+    #character "奥尔加伊兹卡"
+        你在哭什么啊……莱德。
+
+    #playsound freesia\
+        comment("希望之花~")
+
+    #character "奥尔加伊兹卡"
+        #action stand_up speed(slowly)
+
+    #character "莱德马斯"
+        怎么这样……为了我这种人……。
+    #character "奥尔加伊兹卡"
+        我可是铁华团团长奥尔加·伊兹卡啊。这点小伤不算什么。
+    #character "查德"
+        #action shed_tear
+
+    #character "莱德马斯"
+        但是！
+    #character "奥尔加伊兹卡"
+        好了，我们走吧。大家都在等着呢。况且……。（三日月，我终于明白了，我们不需要目的地，只要继续前进就好了，只要不停下脚步，道路就会不断延伸）
+
+#background Memory
+    #character "三日月奥古斯"
+        道歉的话我是不会原谅你的。
+    #character "奥尔加伊兹卡"
+        嗯，我明白的。
+
+        #camera on("奥尔加伊兹卡")
+        我不会停下来的，只要你们不停下来，我就会在前方等着你们！所以，不要停下来啊……。
+
+#background Street
+    #character "奥尔加伊兹卡"
+        我不会停下来的，只要你们不停下来，我就会在前方等着你们！所以，不要停下来啊……。
+
+        #camera on(Sky)
+        #action walk_stop
+        #action fall_down
+    #camera on(object: blood, source: "奥尔加伊兹卡") view(up)
+    #character "奥尔加伊兹卡"
+        ……所以，不要停下来啊……。
+        #camera on(object: finger, source: "奥尔加伊兹卡")
+    #character "三日月奥古斯"
+        奥尔加？

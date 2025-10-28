@@ -272,14 +272,21 @@ impl<T: TextInputSource> Parser<T> {
 
         match result {
             Ok(("", command)) => {
-                let num_name = i64::from_str_radix(command.name(), 10);
-                if num_name.is_err() || !self.config.convert_number_command {
-                    Ok(Some(command))
-                } else {
-                    Ok(Some(Command::new_number(
-                        num_name.unwrap(),
-                        command.params
-                    )))
+                let num_name = command.name().parse();
+                match num_name {
+                    Result::Err(_) => {
+                        Ok(Some(command))
+                    },
+                    Result::Ok(num) =>{
+                        if !self.config.convert_number_command {
+                            Ok(Some(command))
+                        } else {
+                            Ok(Some(Command::new_number(
+                                num,
+                                command.params
+                            )))
+                        }
+                    }
                 }
             }
             Ok((remaining, _)) => {

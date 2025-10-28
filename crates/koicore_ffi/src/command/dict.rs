@@ -6,6 +6,10 @@ use crate::command::param::KoiParamType;
 use super::command::KoiCommand;
 
 /// Opaque handle for composite dict parameter
+/// 
+/// This struct represents a dictionary-style composite parameter that stores key-value pairs.
+/// The keys are strings, and the values can be integers, floats, or strings.
+/// This is an opaque type intended for use through the C FFI API.
 #[repr(C)]
 pub struct KoiCompositeDict {
     _data: (),
@@ -14,8 +18,15 @@ pub struct KoiCompositeDict {
 
 /// Create a new composite dict parameter
 ///
+/// Creates an empty dictionary with no key-value pairs. The returned pointer
+/// must be freed using KoiCompositeDict_Del when no longer needed to avoid memory leaks.
+///
 /// # Returns
 /// Pointer to the new composite dict parameter, or null on error
+///
+/// # Safety
+/// The returned pointer must not be used after calling KoiCompositeDict_Del on it.
+/// The caller is responsible for memory management of the returned object.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCompositeDict_New() -> *mut KoiCompositeDict {
     let param = Parameter::Composite(
@@ -27,12 +38,29 @@ pub unsafe extern "C" fn KoiCompositeDict_New() -> *mut KoiCompositeDict {
 
 /// Get composite dict parameter from command
 ///
+/// Retrieves a dictionary parameter from a command at the specified index.
+/// The parameter must be of dictionary type, otherwise null is returned.
+///
+/// # Ownership and Lifetime
+///
+/// The returned pointer is a borrowed reference to data owned by the command.
+/// It must NOT be freed with KoiCompositeDict_Del. The pointer is only valid
+/// as long as the command object exists and is not modified or destroyed.
+///
 /// # Arguments
 /// * `command` - Command object pointer
-/// * `index` - Parameter index
+/// * `index` - Parameter index (0-based)
 ///
 /// # Returns
-/// Pointer to composite dict parameter, or null on error
+/// Pointer to composite dict parameter, or null on error:
+/// - null if command is null
+/// - null if index is out of bounds
+/// - null if parameter at index is not a dictionary
+///
+/// # Safety
+/// The command pointer must be either null or point to a valid KoiCommand object.
+/// The returned pointer must NOT be freed with KoiCompositeDict_Del as it is owned by the command.
+/// The returned pointer becomes invalid if the command is destroyed or modified.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_GetCompositeDict(
     command: *mut KoiCommand,
@@ -60,11 +88,19 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeDict(
 
 /// Get number of entries in dict
 ///
+/// Returns the count of key-value pairs currently stored in the dictionary.
+/// This is useful for iteration or checking if the dictionary is empty.
+///
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
 ///
 /// # Returns
-/// Number of entries in the dict, 0 on error
+/// Number of entries in the dict, 0 on error:
+/// - 0 if dict is null
+/// - 0 if dict is not a valid dictionary
+///
+/// # Safety
+/// The dict pointer must be a valid KoiCompositeDict pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCompositeDict_GetLength(dict: *mut KoiCompositeDict) -> usize {
     if dict.is_null() {
@@ -80,12 +116,23 @@ pub unsafe extern "C" fn KoiCompositeDict_GetLength(dict: *mut KoiCompositeDict)
 
 /// Remove entry from composite dict by key
 ///
+/// Removes a key-value pair from the dictionary based on the provided key.
+/// If the key does not exist in the dictionary, the function returns an error.
+///
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
-/// * `key` - Key name
+/// * `key` - Key name (null-terminated UTF-8 string)
 ///
 /// # Returns
-/// 0 on success, non-zero on error
+/// 0 on success, non-zero on error:
+/// - -1 if dict or key is null
+/// - -2 if key contains invalid UTF-8
+/// - -3 if key not found in dictionary
+/// - -4 if dict is not a valid dictionary
+///
+/// # Safety
+/// The dict pointer must be a valid KoiCompositeDict pointer.
+/// The key pointer must be a valid null-terminated C string.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCompositeDict_Remove(
     dict: *mut KoiCompositeDict,
@@ -119,11 +166,19 @@ pub unsafe extern "C" fn KoiCompositeDict_Remove(
 
 /// Clear all entries from composite dict
 ///
+/// Removes all key-value pairs from the dictionary, making it empty.
+/// This operation is irreversible but does not deallocate the dictionary itself.
+///
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
 ///
 /// # Returns
-/// 0 on success, non-zero on error
+/// 0 on success, non-zero on error:
+/// - -1 if dict is null
+/// - -3 if dict is not a valid dictionary
+///
+/// # Safety
+/// The dict pointer must be a valid KoiCompositeDict pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCompositeDict_Clear(
     dict: *mut KoiCompositeDict,
@@ -144,8 +199,17 @@ pub unsafe extern "C" fn KoiCompositeDict_Clear(
 
 /// Free composite dict parameter
 ///
+/// Deallocates the memory used by the dictionary and all its key-value pairs.
+/// After calling this function, the pointer becomes invalid and must not be used.
+/// This function should only be called on dictionaries created with KoiCompositeDict_New,
+/// not on dictionaries obtained from KoiCommand_GetCompositeDict.
+///
 /// # Arguments
 /// * `dict` - Composite dict parameter pointer
+///
+/// # Safety
+/// The dict pointer must be a valid KoiCompositeDict pointer created with KoiCompositeDict_New.
+/// Do not call this function on pointers obtained from KoiCommand_GetCompositeDict.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCompositeDict_Del(dict: *mut KoiCompositeDict) {
     if dict.is_null() {
@@ -554,25 +618,20 @@ pub unsafe extern "C" fn KoiCompositeDict_GetStringValue(
     let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
-            if let Some((_, value)) = entries.iter().find(|(k, _)| k == key_str) {
-                match value {
-                    Value::String(v) => {
-                        let v_bytes = v.as_bytes();
-                        let v_len = v_bytes.len();
-                        let required_size = v_len + 1;
-                        
-                        if buffer.is_null() || buffer_size < required_size {
-                            return required_size;
-                        }
-                        
-                        let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
-                        buffer_slice[..v_len].copy_from_slice(v_bytes);
-                        buffer_slice[v_len] = 0;
-                        
-                        required_size
-                    }
-                    _ => 0,
+            if let Some((_, Value::String(v))) = entries.iter().find(|(k, _)| k == key_str) {
+                let v_bytes = v.as_bytes();
+                let v_len = v_bytes.len();
+                let required_size = v_len + 1;
+                
+                if buffer.is_null() || buffer_size < required_size {
+                    return required_size;
                 }
+                
+                let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
+                buffer_slice[..v_len].copy_from_slice(v_bytes);
+                buffer_slice[v_len] = 0;
+                
+                required_size
             } else {
                 0 // Key not found, return 0 to indicate error
             }
@@ -607,11 +666,8 @@ pub unsafe extern "C" fn KoiCompositeDict_GetStringValueLen(
     let param = unsafe { &*(dict as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::Dict(entries)) => {
-            if let Some((_, value)) = entries.iter().find(|(k, _)| k == key_str) {
-                match value {
-                    Value::String(v) => v.len() + 1,
-                    _ => 0,
-                }
+            if let Some((_, Value::String(v))) = entries.iter().find(|(k, _)| k == key_str) {
+                v.len() + 1
             } else {
                 0 // Key not found, return 0 to indicate error
             }
