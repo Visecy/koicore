@@ -29,10 +29,10 @@ pub mod error;
 pub mod traceback;
 pub mod input;
 pub mod decode_buf_reader;
-mod command_parser;
+pub mod command_parser;
 
-pub use super::command::{ Command, Parameter, Value };
 use nom::Offset;
+use super::command::Command;
 pub use traceback::TracebackEntry;
 pub use error::{ ParseError, ParseResult, ErrorInfo };
 pub use input::{ TextInputSource, FileInputSource, StringInputSource };
@@ -383,5 +383,17 @@ impl<T: TextInputSource> Parser<T> {
     /// This is useful for error reporting and progress tracking.
     pub fn current_line(&self) -> usize {
         self.input.line_number
+    }
+}
+
+impl<T: TextInputSource> AsRef<T> for Parser<T> {
+    fn as_ref(&self) -> &T {
+        &self.input.source
+    }
+}
+
+impl<T: TextInputSource> AsMut<T> for Parser<T> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut self.input.source
     }
 }
