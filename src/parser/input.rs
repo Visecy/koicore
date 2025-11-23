@@ -56,16 +56,16 @@ impl<T: TextInputSource + ?Sized> TextInputSource for Arc<Mutex<T>> {
     fn next_line(&mut self) -> io::Result<Option<String>> {
         self.as_ref()
             .lock()
-            .map_err(|e| { io::Error::new(io::ErrorKind::Other, format!("{}", e)) })?
+            .map_err(|e| { io::Error::other(format!("{}", e)) })?
             .next_line()
     }
 
     fn source_name(&self) -> String {
-        return self
+        self
             .as_ref()
             .lock()
             .map(|s| s.source_name())
-            .unwrap_or("<string>".into());
+            .unwrap_or("<string>".into())
     }
 }
 
