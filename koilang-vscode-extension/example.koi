@@ -1,0 +1,36 @@
+// This is a sample KoiLang file to demonstrate syntax highlighting
+#scene title="My Visual Novel" author="KoiLang Developer"
+
+#char main name="Alice" color="#FF0000"
+#char secondary name="Bob" color="#0000FF"
+
+// Character introduction
+#show char="main" position="center" // Show main character
+
+Alice: "Hello there! Welcome to our visual novel."
+Bob: 'This is a single quote example.'
+
+// Conditional logic
+#if mood == "happy" {
+    #show effect="sparkle" duration=2.5
+    Alice: "I'm feeling happy today!"
+} else {
+    #show effect="sad" duration=1.0
+    Alice: "I'm not feeling so great..."
+}
+
+// Text with parameters
+#text message="Hello, world!" x=100 y=200 size=16 color="#FFFFFF" visible=true
+
+// List and dictionary examples
+#setup characters=["Alice", "Bob", "Charlie"] locations={"home": "Alice's house", "school": "Local high school"}
+
+// Multiline content
+#dialogue
+This is a multiline text content
+that spans multiple lines.
+It should be highlighted as text content.
+#end
+
+// Numeric values
+#position x=100 y=200.5 z=-50

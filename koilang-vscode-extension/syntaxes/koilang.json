@@ -1,0 +1,191 @@
+{
+    "fileTypes": ["koi"],
+    "name": "koilang",
+    "scopeName": "source.koilang",
+    "patterns": [
+        {
+            "include": "#commands"
+        },
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#text_content"
+        }
+    ],
+    "repository": {
+        "commands": {
+            "patterns": [
+                {
+                    "name": "meta.command.koilang",
+                    "begin": "^\\s*(#)\\s*([a-zA-Z_][a-zA-Z0-9_]*)",
+                    "beginCaptures": {
+                        "1": {
+                            "name": "keyword.control.koilang"
+                        },
+                        "2": {
+                            "name": "entity.name.function.koilang"
+                        }
+                    },
+                    "end": "(?=$|//|/\\*)",
+                    "patterns": [
+                        {
+                            "include": "#parameters"
+                        },
+                        {
+                            "include": "#string"
+                        },
+                        {
+                            "include": "#number"
+                        },
+                        {
+                            "include": "#literal"
+                        },
+                        {
+                            "include": "#list"
+                        },
+                        {
+                            "include": "#dict"
+                        }
+                    ]
+                }
+            ]
+        },
+        "parameters": {
+            "patterns": [
+                {
+                    "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(=)\\s*",
+                    "captures": {
+                        "1": {
+                            "name": "variable.parameter.koilang"
+                        },
+                        "2": {
+                            "name": "keyword.operator.assignment.koilang"
+                        }
+                    }
+                }
+            ]
+        },
+        "string": {
+            "patterns": [
+                {
+                    "name": "string.quoted.double.koilang",
+                    "begin": "\"",
+                    "end": "\"",
+                    "patterns": [
+                        {
+                            "include": "#string_escaped_char"
+                        }
+                    ]
+                },
+                {
+                    "name": "string.quoted.single.koilang",
+                    "begin": "'",
+                    "end": "'",
+                    "patterns": [
+                        {
+                            "include": "#string_escaped_char"
+                        }
+                    ]
+                }
+            ]
+        },
+        "string_escaped_char": {
+            "name": "constant.character.escape.koilang",
+            "match": "\\\\(n|t|r|\\\\|\"|')"
+        },
+        "number": {
+            "patterns": [
+                {
+                    "name": "constant.numeric.float.koilang",
+                    "match": "\\b[+-]?[0-9]+\\.[0-9]+\\b"
+                },
+                {
+                    "name": "constant.numeric.integer.koilang",
+                    "match": "\\b[+-]?[0-9]+\\b"
+                }
+            ]
+        },
+        "literal": {
+            "name": "constant.language.boolean.koilang",
+            "match": "\\b(true|false|True|False|TRUE|FALSE)\\b"
+        },
+        "list": {
+            "name": "meta.structure.list.koilang",
+            "begin": "\\[",
+            "end": "\\]",
+            "patterns": [
+                {
+                    "include": "#string"
+                },
+                {
+                    "include": "#number"
+                },
+                {
+                    "include": "#literal"
+                },
+                {
+                    "include": "#list"
+                },
+                {
+                    "match": ",",
+                    "name": "punctuation.separator.koilang"
+                }
+            ]
+        },
+        "dict": {
+            "name": "meta.structure.dictionary.koilang",
+            "begin": "\\{",
+            "end": "\\}",
+            "patterns": [
+                {
+                    "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(:)",
+                    "captures": {
+                        "1": {
+                            "name": "support.type.property-name.koilang"
+                        },
+                        "2": {
+                            "name": "punctuation.separator.koilang"
+                        }
+                    }
+                },
+                {
+                    "include": "#string"
+                },
+                {
+                    "include": "#number"
+                },
+                {
+                    "include": "#literal"
+                },
+                {
+                    "include": "#list"
+                },
+                {
+                    "include": "#dict"
+                },
+                {
+                    "match": ",",
+                    "name": "punctuation.separator.koilang"
+                }
+            ]
+        },
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-slash.koilang",
+                    "match": "//.*$"
+                },
+                {
+                    "name": "comment.block.koilang",
+                    "begin": "/\\*",
+                    "end": "\\*/"
+                }
+            ]
+        },
+        "text_content": {
+            "name": "text.content.koilang",
+            "match": "^(?!\\s*#)[^/\\n]+"
+        }
+    }
+}

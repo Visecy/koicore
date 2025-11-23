@@ -1,0 +1,40 @@
+// Test file for KoiLang syntax highlighting
+#scene title="Test Scene" version=1.0 enabled=true
+
+#character main {
+    name: "Alice",
+    age: 20,
+    traits: ["brave", "curious", "kind"]
+}
+
+#dialogue start
+Alice: "Hello! This is a test of KoiLang syntax highlighting."
+Bob: 'This uses single quotes.'
+
+#if condition == true {
+    #effect type="glow" intensity=0.8
+    Alice: "The condition is true!"
+} else {
+    #effect type="dim" intensity=0.2
+    Alice: "The condition is false."
+}
+
+#position x=100 y=200.5 z=-50
+
+#array example=[1, 2, 3, "four", 5.0, true, false]
+
+#object settings={
+    "resolution": "1920x1080",
+    "fullscreen": true,
+    "volume": 0.8
+}
+
+#multiline text
+This is a text content
+that spans multiple lines.
+It should be highlighted differently
+from the commands.
+#end
+
+// Final command
+#finish
