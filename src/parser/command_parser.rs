@@ -137,7 +137,7 @@ fn parse_bin_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::nu
     preceded(
         tag("0b"),
         map_res(
-            take_while1(|c: char| (c == '0' || c == '1')),
+            take_while1(|c: char| c == '0' || c == '1'),
             |s: &str| { i64::from_str_radix(s, 2) }
         )
     ).parse(input)
@@ -187,8 +187,8 @@ fn float_exp<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a
 fn parse_literal_str<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
     recognize(
         pair(
-            take_while1(|c: char| (c.is_ascii_alphabetic() || c == '_')),
-            take_while(|c: char| (c.is_ascii_alphanumeric() || c == '_'))
+            take_while1(|c: char| c.is_ascii_alphabetic() || c == '_'),
+            take_while(|c: char| c.is_ascii_alphanumeric() || c == '_')
         )
     ).parse(input)
 }

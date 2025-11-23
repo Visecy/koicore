@@ -84,13 +84,13 @@ impl TextInputSource for CustomTextInputSource {
         }
     }
 
-    fn source_name(&self) -> &str {
+    fn source_name(&self) -> String {
         let name_ptr = unsafe { ((*self.vtable).source_name)(self.user_data) };
         if name_ptr.is_null() {
-            "<string>"
+            "<string>".to_string()
         } else {
             let c_str = unsafe { CStr::from_ptr(name_ptr) };
-            c_str.to_str().unwrap_or("<string>")
+            c_str.to_str().unwrap_or("<string>").to_string()
         }
     }
 }

@@ -1,7 +1,6 @@
 use std::path::Path;
 
-use encoding_rs::Encoding;
-use koicore::parser::{self, input::EncodingErrorStrategy};
+use koicore::{command, parser::{self, input::EncodingErrorStrategy}};
 
 #[test]
 fn test_early_stop() {
@@ -26,7 +25,7 @@ fn test_parse_hello_world() {
     let cmd = parser.next_command().unwrap();
     assert_eq!(
         cmd,
-        Some(parser::Command::new(
+        Some(command::Command::new(
             "hello",
             vec!["world".into()]
         ))
@@ -34,7 +33,7 @@ fn test_parse_hello_world() {
     let text = parser.next_command().unwrap();
     assert_eq!(
         text,
-        Some(parser::Command::new_text("This is a text."))
+        Some(command::Command::new_text("This is a text."))
     );
 }
 
