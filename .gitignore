@@ -28,3 +28,4 @@ Testing/
 test.*
 
 .vscode/
+.trae/

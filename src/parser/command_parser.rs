@@ -143,6 +143,16 @@ fn parse_bin_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::nu
     ).parse(input)
 }
 
+fn parse_oct_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, i64, E> {
+    preceded(
+        tag("0o"),
+        map_res(
+            take_while1(|c: char| c.is_ascii_digit()),
+            |s: &str| { i64::from_str_radix(s, 8) }
+        )
+    ).parse(input)
+}
+
 /// Parse any integer type (decimal, hex, binary)
 fn parse_integer<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, Value, E> {
     context(
@@ -150,6 +160,7 @@ fn parse_integer<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExtern
         alt((
             map(parse_hex_int, Value::Int),
             map(parse_bin_int, Value::Int),
+            map(parse_oct_int, Value::Int),
             map(parse_decimal_int, Value::Int),
         ))
     ).parse(input)
