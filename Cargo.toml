@@ -1,7 +1,7 @@
 [package]
 name = "koicore"
 description = "core KoiLang module"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 license = "MIT"
 authors = ["Ovizro <ovizro@visecy.org>"]
@@ -9,8 +9,32 @@ repository = "https://github.com/Visecy/koicore"
 keywords = ["KoiLang", "parser", "markup-language"]
 
 [[example]]
-name = "decode_buf_reader_example"
-path = "examples/decode_buf_reader_example.rs"
+name = "decode_buf_reader"
+path = "examples/advanced/decode_buf_reader.rs"
+
+[[example]]
+name = "simple_parser"
+path = "examples/basic_usage/simple_parser.rs"
+
+[[example]]
+name = "text_vs_annotation"
+path = "examples/basic_usage/text_vs_annotation.rs"
+
+[[example]]
+name = "command_threshold"
+path = "examples/basic_usage/command_threshold.rs"
+
+[[example]]
+name = "string_input"
+path = "examples/input_sources/string_input.rs"
+
+[[example]]
+name = "file_input"
+path = "examples/input_sources/file_input.rs"
+
+[[example]]
+name = "bufread_wrapper"
+path = "examples/input_sources/bufread_wrapper.rs"
 
 [dependencies]
 nom = "8.0"

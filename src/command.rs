@@ -111,21 +111,27 @@ impl<T: Into<Value>> From<T> for CompositeValue {
     }
 }
 
-impl From<Vec<Value>> for CompositeValue {
-    fn from(v: Vec<Value>) -> Self {
-        Self::List(v)
+impl<T: Into<Value>> From<Vec<T>> for CompositeValue {
+    fn from(v: Vec<T>) -> Self {
+        Self::List(v.into_iter().map(|item| item.into()).collect())
     }
 }
 
-impl From<Vec<(String, Value)>> for CompositeValue {
-    fn from(v: Vec<(String, Value)>) -> Self {
-        Self::Dict(v)
+impl<T: Into<Value>> From<HashMap<String, T>> for CompositeValue {
+    fn from(v: HashMap<String, T>) -> Self {
+        Self::Dict(v.into_iter().map(|(k, v)| (k, v.into())).collect())
     }
 }
 
-impl From<HashMap<String, Value>> for CompositeValue {
-    fn from(v: HashMap<String, Value>) -> Self {
-        Self::Dict(v.into_iter().collect())
+impl<T: Into<Value>> FromIterator<T> for CompositeValue {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        Self::List(iter.into_iter().map(|item| item.into()).collect())
+    }
+}
+
+impl<T: Into<Value>> FromIterator<(String, T)> for CompositeValue {
+    fn from_iter<I: IntoIterator<Item = (String, T)>>(iter: I) -> Self {
+        Self::Dict(iter.into_iter().map(|(k, v)| (k, v.into())).collect())
     }
 }
 
