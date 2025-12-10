@@ -179,11 +179,10 @@ impl Generators {
     ) -> FormatterOptions {
         if let Some(options_map) = param_options {
             // Try to get options by name first (for composite parameters)
-            if let Some(param_name) = name {
-                if let Some(options) = options_map.get(&ParamFormatSelector::Name(param_name)) {
+            if let Some(param_name) = name
+                && let Some(options) = options_map.get(&ParamFormatSelector::Name(param_name)) {
                     return Self::merge_options(default_options, options);
                 }
-            }
             
             // Try to get options by position
             if let Some(options) = options_map.get(&ParamFormatSelector::Position(position)) {

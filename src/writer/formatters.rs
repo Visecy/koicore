@@ -69,7 +69,7 @@ impl Formatters {
                 
                 for val in values {
                     if !first {
-                        result.push_str(",");
+                        result.push(',');
                         if !options.compact {
                             result.push(' ');
                         }
@@ -87,7 +87,7 @@ impl Formatters {
                 
                 for (key, val) in entries {
                     if !first {
-                        result.push_str(",");
+                        result.push(',');
                         if !options.compact {
                             result.push(' ');
                         }
@@ -129,7 +129,7 @@ impl Formatters {
             },
         };
         
-        format!("{}", param_text)
+        param_text.to_string()
     }
 }
 
