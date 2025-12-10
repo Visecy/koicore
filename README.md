@@ -23,6 +23,7 @@ The core idea of KoiLang is to separate data and instructions. KoiLang files con
 - **Configurable Parsing**: Customizable command thresholds and parsing rules
 - **Type-Safe Data Structures**: Strongly typed command and parameter representations
 - **High Performance**: Built with Rust's performance and safety guarantees
+- **Cross-Language FFI**: C-compatible API for integration with C/C++ and other languages
 
 ## Installation
 
@@ -30,7 +31,24 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-koicore = "0.1.0"
+koicore = "0.1.3"
+```
+
+## Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/Visecy/koicore.git
+cd koicore
+
+# Build the project
+make build
+
+# Run tests
+make test
+
+# Run FFI tests
+make ffi-test
 ```
 
 ## Quick Start
@@ -330,6 +348,62 @@ The relationship between koicore and Python Kola represents an evolution of the 
 3. **Future Evolution**: Kola will gradually adopt koicore as its underlying implementation and will be progressively replaced by the new bindings.
 
 This transition ensures better performance, improved cross-language compatibility, and a more maintainable codebase for the KoiLang ecosystem.
+
+## Cross-Language Integration
+
+For applications written in C, C++, or other programming languages, koicore provides a comprehensive Foreign Function Interface (FFI). The FFI module (`koicore_ffi`) exposes all core koicore functionality through a C-compatible API.
+
+### Key FFI Features
+
+- **C-Compatible API**: Full C API with C++ namespace wrapper support
+- **Memory Management**: Explicit ownership and safe memory management
+- **Complete Coverage**: Access to all parser and command functionality
+- **Error Handling**: Detailed error reporting with source position information
+- **Multiple Input Sources**: Support for strings, files, and custom input callbacks
+- **Composite Parameters**: Full support for lists and dictionaries
+
+### Using the FFI
+
+The detailed FFI documentation is available in [`crates/koicore_ffi/README.md`](./crates/koicore_ffi/README.md). It includes:
+
+- **Building and Linking**: Complete build instructions and linking examples
+- **API Reference**: Full C API documentation with examples
+- **Quick Start Guide**: Basic parsing examples in C/C++
+- **Advanced Usage**: Custom input sources, composite parameters, and error handling
+- **Memory Management**: Guidelines for safe memory usage
+- **Thread Safety**: Best practices for concurrent usage
+
+### Quick FFI Example
+
+```c
+#include "koicore.h"
+#include <stdio.h>
+
+int main() {
+    // Create input source from string
+    KoiInputSource* source = KoiInputSource_FromString("#character Alice \"Hello!\"");
+    
+    // Initialize parser configuration
+    KoiParserConfig config;
+    KoiParserConfig_Init(&config);
+    
+    // Create parser and parse commands
+    KoiParser* parser = KoiParser_New(source, &config);
+    KoiCommand* cmd = KoiParser_NextCommand(parser);
+    
+    if (cmd) {
+        char name[256];
+        KoiCommand_GetName(cmd, name, sizeof(name));
+        printf("Command: %s\n", name);
+        KoiCommand_Del(cmd);
+    }
+    
+    KoiParser_Del(parser);
+    return 0;
+}
+```
+
+See the [FFI documentation](./crates/koicore_ffi/README.md) for comprehensive usage examples and API details.
 
 ## License
 

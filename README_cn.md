@@ -23,6 +23,7 @@ KoiLang 的核心理念是分离数据和指令。KoiLang 文件包含数据（�
 - **可配置的解析**：可自定义的命令阈值和解析规则
 - **类型安全的数据结构**：强类型的命令和参数表示
 - **高性能**：基于 Rust 的性能和安全保证构建
+- **跨语言 FFI**：C 兼容 API，支持与 C/C++ 和其他语言集成
 
 ## 安装
 
@@ -30,7 +31,24 @@ KoiLang 的核心理念是分离数据和指令。KoiLang 文件包含数据（�
 
 ```toml
 [dependencies]
-koicore = "0.1.0"
+koicore = "0.1.3"
+```
+
+## 从源码构建
+
+```bash
+# 克隆仓库
+git clone https://github.com/Visecy/koicore.git
+cd koicore
+
+# 构建项目
+make build
+
+# 运行测试
+make test
+
+# 运行FFI测试
+make ffi-test
 ```
 
 ## 快速开始
@@ -172,7 +190,7 @@ use koicore::parser::ParserConfig;
 let config = ParserConfig::default();
 
 // 自定义阈值 - 需要 2 个 # 字符作为命令
-let config = ParserConfig { command_threshold: 2 };
+let config = ParserConfig::default().with_command_threshold(2);
 # }
 ```
 
@@ -315,6 +333,62 @@ koicore 与 Python Kola 之间的关系代表了 KoiLang 生态系统的演进�
 3. **未来演进**：Kola 将逐步采用 koicore 作为底层实现，并将被新的绑定逐步取代。
 
 这一过渡确保了 KoiLang 生态系统更好的性能、改进的跨语言兼容性和更易维护的代码库。
+
+## 跨语言集成
+
+对于使用 C、C++ 或其他编程语言编写的应用程序，koicore 提供了全面的外部函数接口（FFI）。FFI 模块（`koicore_ffi`）通过 C 兼容 API 公开所有核心 koicore 功能。
+
+### 主要 FFI 特性
+
+- **C 兼容 API**：完整的 C API，支持 C++ 命名空间包装
+- **内存管理**：明确的所有权和安全的内存管理
+- **完整覆盖**：访问所有解析器和命令功能
+- **错误处理**：详细的错误报告，包含源位置信息
+- **多种输入源**：支持字符串、文件和自定义输入回调
+- **复合参数**：完整支持列表和字典
+
+### 使用 FFI
+
+详细的 FFI 文档可在 [`crates/koicore_ffi/README.md`](./crates/koicore_ffi/README.md) 中找到。包括：
+
+- **构建和链接**：完整的构建说明和链接示例
+- **API 参考**：完整的 C API 文档和示例
+- **快速开始指南**：C/C++ 中的基本解析示例
+- **高级用法**：自定义输入源、复合参数和错误处理
+- **内存管理**：安全内存使用指南
+- **线程安全**：并发使用的最佳实践
+
+### 快速 FFI 示例
+
+```c
+#include "koicore.h"
+#include <stdio.h>
+
+int main() {
+    // 从字符串创建输入源
+    KoiInputSource* source = KoiInputSource_FromString("#character Alice \"Hello!\"");
+    
+    // 初始化解析器配置
+    KoiParserConfig config;
+    KoiParserConfig_Init(&config);
+    
+    // 创建解析器并解析命令
+    KoiParser* parser = KoiParser_New(source, &config);
+    KoiCommand* cmd = KoiParser_NextCommand(parser);
+    
+    if (cmd) {
+        char name[256];
+        KoiCommand_GetName(cmd, name, sizeof(name));
+        printf("Command: %s\n", name);
+        KoiCommand_Del(cmd);
+    }
+    
+    KoiParser_Del(parser);
+    return 0;
+}
+```
+
+有关全面的使用示例和 API 详细信息，请参阅 [FFI 文档](./crates/koicore_ffi/README.md)。
 
 ## 许可证
 

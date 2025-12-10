@@ -215,6 +215,10 @@ impl<T: TextInputSource> Parser<T> {
                 }
             };
             let trimmed = line_text.trim();
+            if trimmed.is_empty() {
+                // Skip empty lines
+                continue;
+            }
 
             // Count leading # characters
             let hash_count = trimmed

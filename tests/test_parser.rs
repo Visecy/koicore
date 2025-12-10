@@ -79,7 +79,26 @@ fn test_parse_example() {
         println!("{:?}", cmd);
         Ok::<bool, Box<parser::ParseError>>(true)
     }).expect("Failed to process file");
+    // Since we're processing the entire file, we should reach EOF
+    assert!(reached_eof, "Should have reached end of file");
+
+    let input = parser::FileInputSource::new(Path::new("examples/ktxt/example1.ktxt")).expect("Failed to open file");
+    let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
+    // just test no error
+    let reached_eof = parser.process_with(|cmd| {
+        println!("{:?}", cmd);
+        Ok::<bool, Box<parser::ParseError>>(true)
+    }).expect("Failed to process file");
+    // Since we're processing the entire file, we should reach EOF
+    assert!(reached_eof, "Should have reached end of file");
     
+    let input = parser::FileInputSource::new(Path::new("examples/ktxt/example1.koi0")).expect("Failed to open file");
+    let mut parser = parser::Parser::new(input, parser::ParserConfig::default().with_command_threshold(0));
+    // just test no error
+    let reached_eof = parser.process_with(|cmd| {
+        println!("{:?}", cmd);
+        Ok::<bool, Box<parser::ParseError>>(true)
+    }).expect("Failed to process file");
     // Since we're processing the entire file, we should reach EOF
     assert!(reached_eof, "Should have reached end of file");
 }
