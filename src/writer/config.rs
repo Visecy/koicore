@@ -81,9 +81,7 @@ pub struct WriterConfig {
 impl Default for WriterConfig {
     fn default() -> Self {
         Self {
-            global_options: FormatterOptions {
-                ..Default::default()
-            },
+            global_options: FormatterOptions::default(),
             command_options: HashMap::new(),
             command_threshold: 1,
         }

@@ -32,6 +32,16 @@ typedef enum KoiFileInputEncodingStrategy {
 } KoiFileInputEncodingStrategy;
 
 /**
+ * Number format for numeric values
+ */
+typedef enum KoiNumberFormat {
+  Decimal = 0,
+  Hex = 1,
+  Octal = 2,
+  Binary = 3,
+} KoiNumberFormat;
+
+/**
  * Opaque handle for KoiLang input sources
  *
  * This structure represents an input source that provides text to the parser.
@@ -49,6 +59,16 @@ typedef struct KoiInputSource KoiInputSource;
 typedef struct KoiParser KoiParser;
 
 /**
+ * String output buffer that can be shared with C
+ */
+typedef struct KoiStringOutput KoiStringOutput;
+
+/**
+ * Opaque handle for KoiWriter
+ */
+typedef struct KoiWriter KoiWriter;
+
+/**
  * Opaque handle for KoiLang command
  *
  * This structure represents a command in the KoiLang language. Commands can be
@@ -60,16 +80,6 @@ typedef struct KoiCommand {
 } KoiCommand;
 
 /**
- * Opaque handle for composite list parameter
- *
- * This structure represents a list parameter in a KoiLang command.
- * Lists can contain values of different types (integers, floats, strings).
- */
-typedef struct KoiCompositeList {
-
-} KoiCompositeList;
-
-/**
  * Opaque handle for composite dict parameter
  *
  * This struct represents a dictionary-style composite parameter that stores key-value pairs.
@@ -79,6 +89,16 @@ typedef struct KoiCompositeList {
 typedef struct KoiCompositeDict {
 
 } KoiCompositeDict;
+
+/**
+ * Opaque handle for composite list parameter
+ *
+ * This structure represents a list parameter in a KoiLang command.
+ * Lists can contain values of different types (integers, floats, strings).
+ */
+typedef struct KoiCompositeList {
+
+} KoiCompositeList;
 
 typedef struct KoiParserConfig {
   /**
@@ -151,6 +171,102 @@ typedef struct KoiTextInputSourceVTable {
    */
   const char *(*source_name)(void *user_data);
 } KoiTextInputSourceVTable;
+
+/**
+ * VTable for custom writer output
+ */
+typedef struct KoiWriterOutputVTable {
+  /**
+   * Function to write data
+   *
+   * # Arguments
+   * * `user_data` - User-provided data pointer
+   * * `buf` - Pointer to data buffer
+   * * `len` - Length of data buffer
+   *
+   * # Returns
+   * Number of bytes written. 0 implies error if len > 0.
+   */
+  uintptr_t (*write)(void *user_data, const uint8_t *buf, uintptr_t len);
+  /**
+   * Function to flush output
+   *
+   * # Arguments
+   * * `user_data` - User-provided data pointer
+   *
+   * # Returns
+   * 0 on success, non-zero on error
+   */
+  int32_t (*flush)(void *user_data);
+} KoiWriterOutputVTable;
+
+/**
+ * Transparent configuration struct for FFI
+ */
+typedef struct KoiFormatterOptions {
+  uintptr_t indent;
+  bool use_tabs;
+  bool newline_before;
+  bool newline_after;
+  bool compact;
+  bool force_quotes_for_vars;
+  enum KoiNumberFormat number_format;
+  bool newline_before_param;
+  bool newline_after_param;
+} KoiFormatterOptions;
+
+/**
+ * Command-specific option entry
+ * Used in a null-terminated array
+ */
+typedef struct KoiCommandOption {
+  /**
+   * Command name string
+   * Terminate list with name = NULL
+   */
+  const char *name;
+  struct KoiFormatterOptions options;
+} KoiCommandOption;
+
+/**
+ * Transparent WriterConfig
+ * Users can allocate this on stack.
+ */
+typedef struct KoiWriterConfig {
+  struct KoiFormatterOptions global_options;
+  uintptr_t command_threshold;
+  /**
+   * Pointer to array of KoiCommandOption, terminated by name=NULL.
+   * Can be NULL if no command options.
+   */
+  const struct KoiCommandOption *command_options;
+} KoiWriterConfig;
+
+/**
+ * Parameter selector for options
+ * If is_position is true, uses position. Otherwise uses name.
+ */
+typedef struct KoiParamFormatSelector {
+  bool is_position;
+  uintptr_t position;
+  /**
+   * Only used if is_position is false
+   */
+  const char *name;
+} KoiParamFormatSelector;
+
+/**
+ * Parameter-specific option entry
+ * Used in a null-terminated array
+ */
+typedef struct KoiParamOption {
+  /**
+   * Selector for which parameter this applies to
+   * Terminate list with name = NULL AND is_position = false
+   */
+  struct KoiParamFormatSelector selector;
+  struct KoiFormatterOptions options;
+} KoiParamOption;
 
 #ifdef __cplusplus
 extern "C" {
@@ -265,60 +381,261 @@ struct KoiCommand *KoiCommand_Clone(const struct KoiCommand *command);
 int32_t KoiCommand_Compare(const struct KoiCommand *command1, const struct KoiCommand *command2);
 
 /**
- * Get number of parameters in command
+ * Create a new composite dict parameter
  *
- * # Arguments
- * * `command` - Command object pointer
- *
- * # Returns
- * Number of parameters, or 0 if command is null
- */
-uintptr_t KoiCommand_GetParamCount(struct KoiCommand *command);
-
-/**
- * Get parameter type (unified enum for both basic and composite types)
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
+ * Creates an empty dictionary with no key-value pairs. The returned pointer
+ * must be freed using KoiCompositeDict_Del when no longer needed to avoid memory leaks.
  *
  * # Returns
- * Parameter type, or KoiParamType::Invalid on error
+ * Pointer to the new composite dict parameter, or null on error
+ *
+ * # Safety
+ * The returned pointer must not be used after calling KoiCompositeDict_Del on it.
+ * The caller is responsible for memory management of the returned object.
  */
-int32_t KoiCommand_GetParamType(struct KoiCommand *command, uintptr_t index);
+struct KoiCompositeDict *KoiCompositeDict_New(void);
 
 /**
- * Get integer value from basic parameter
+ * Get composite dict parameter from command
+ *
+ * Retrieves a dictionary parameter from a command at the specified index.
+ * The parameter must be of dictionary type, otherwise null is returned.
+ *
+ * # Ownership and Lifetime
+ *
+ * The returned pointer is a borrowed reference to data owned by the command.
+ * It must NOT be freed with KoiCompositeDict_Del. The pointer is only valid
+ * as long as the command object exists and is not modified or destroyed.
  *
  * # Arguments
  * * `command` - Command object pointer
- * * `index` - Parameter index
+ * * `index` - Parameter index (0-based)
+ *
+ * # Returns
+ * Pointer to composite dict parameter, or null on error:
+ * - null if command is null
+ * - null if index is out of bounds
+ * - null if parameter at index is not a dictionary
+ *
+ * # Safety
+ * The command pointer must be either null or point to a valid KoiCommand object.
+ * The returned pointer must NOT be freed with KoiCompositeDict_Del as it is owned by the command.
+ * The returned pointer becomes invalid if the command is destroyed or modified.
+ */
+struct KoiCompositeDict *KoiCommand_GetCompositeDict(struct KoiCommand *command, uintptr_t index);
+
+/**
+ * Get number of entries in dict
+ *
+ * Returns the count of key-value pairs currently stored in the dictionary.
+ * This is useful for iteration or checking if the dictionary is empty.
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ *
+ * # Returns
+ * Number of entries in the dict, 0 on error:
+ * - 0 if dict is null
+ * - 0 if dict is not a valid dictionary
+ *
+ * # Safety
+ * The dict pointer must be a valid KoiCompositeDict pointer.
+ */
+uintptr_t KoiCompositeDict_GetLength(struct KoiCompositeDict *dict);
+
+/**
+ * Remove entry from composite dict by key
+ *
+ * Removes a key-value pair from the dictionary based on the provided key.
+ * If the key does not exist in the dictionary, the function returns an error.
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name (null-terminated UTF-8 string)
+ *
+ * # Returns
+ * 0 on success, non-zero on error:
+ * - -1 if dict or key is null
+ * - -2 if key contains invalid UTF-8
+ * - -3 if key not found in dictionary
+ * - -4 if dict is not a valid dictionary
+ *
+ * # Safety
+ * The dict pointer must be a valid KoiCompositeDict pointer.
+ * The key pointer must be a valid null-terminated C string.
+ */
+int32_t KoiCompositeDict_Remove(struct KoiCompositeDict *dict, const char *key);
+
+/**
+ * Clear all entries from composite dict
+ *
+ * Removes all key-value pairs from the dictionary, making it empty.
+ * This operation is irreversible but does not deallocate the dictionary itself.
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ *
+ * # Returns
+ * 0 on success, non-zero on error:
+ * - -1 if dict is null
+ * - -3 if dict is not a valid dictionary
+ *
+ * # Safety
+ * The dict pointer must be a valid KoiCompositeDict pointer.
+ */
+int32_t KoiCompositeDict_Clear(struct KoiCompositeDict *dict);
+
+/**
+ * Free composite dict parameter
+ *
+ * Deallocates the memory used by the dictionary and all its key-value pairs.
+ * After calling this function, the pointer becomes invalid and must not be used.
+ * This function should only be called on dictionaries created with KoiCompositeDict_New,
+ * not on dictionaries obtained from KoiCommand_GetCompositeDict.
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ *
+ * # Safety
+ * The dict pointer must be a valid KoiCompositeDict pointer created with KoiCompositeDict_New.
+ * Do not call this function on pointers obtained from KoiCommand_GetCompositeDict.
+ */
+void KoiCompositeDict_Del(struct KoiCompositeDict *dict);
+
+/**
+ * Set integer value in composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ * * `value` - Integer value to set
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_SetIntValue(struct KoiCompositeDict *dict, const char *key, int64_t value);
+
+/**
+ * Set float value in composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ * * `value` - Float value to set
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_SetFloatValue(struct KoiCompositeDict *dict,
+                                       const char *key,
+                                       double value);
+
+/**
+ * Set string value in composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ * * `value` - String value to set
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_SetStringValue(struct KoiCompositeDict *dict,
+                                        const char *key,
+                                        const char *value);
+
+/**
+ * Get dict key by index into provided buffer
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `index` - Entry index
+ * * `buffer` - Buffer for key output
+ * * `buffer_size` - Buffer size
+ *
+ * # Returns
+ * Actual key length (excluding null terminator), or required buffer size if insufficient
+ * Returns 0 on error
+ */
+uintptr_t KoiCompositeDict_GetKeybyIndex(struct KoiCompositeDict *dict,
+                                         uintptr_t index,
+                                         char *buffer,
+                                         uintptr_t buffer_size);
+
+/**
+ * Get dict key length by index
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `index` - Entry index
+ *
+ * # Returns
+ * Required buffer size (including null terminator)
+ * Returns 0 on error
+ */
+uintptr_t KoiCompositeDict_GetKeyLenByIndex(struct KoiCompositeDict *dict, uintptr_t index);
+
+/**
+ * Get dict value type by index
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `index` - Entry index
+ *
+ * # Returns
+ * Value type as KoiParamType enum value
+ */
+int32_t KoiCompositeDict_GetValueTypeByIndex(struct KoiCompositeDict *dict, uintptr_t index);
+
+/**
+ * Get value type from composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ *
+ * # Returns
+ * Value type as KoiParamType enum value
+ */
+int32_t KoiCompositeDict_GetValueType(struct KoiCompositeDict *dict, const char *key);
+
+/**
+ * Get integer value from composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
  * * `out_value` - Pointer to store integer value
  *
  * # Returns
  * 0 on success, non-zero on error or type mismatch
  */
-int32_t KoiCommand_GetIntParam(struct KoiCommand *command, uintptr_t index, int64_t *out_value);
+int32_t KoiCompositeDict_GetIntValue(struct KoiCompositeDict *dict,
+                                     const char *key,
+                                     int64_t *out_value);
 
 /**
- * Get float value from basic parameter
+ * Get float value from composite dict by key
  *
  * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
  * * `out_value` - Pointer to store float value
  *
  * # Returns
  * 0 on success, non-zero on error or type mismatch
  */
-int32_t KoiCommand_GetFloatParam(struct KoiCommand *command, uintptr_t index, double *out_value);
+int32_t KoiCompositeDict_GetFloatValue(struct KoiCompositeDict *dict,
+                                       const char *key,
+                                       double *out_value);
 
 /**
- * Get string value from basic parameter into provided buffer
+ * Get string value from composite dict by key into provided buffer
  *
  * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
  * * `buffer` - Buffer for string output
  * * `buffer_size` - Buffer size
  *
@@ -326,185 +643,22 @@ int32_t KoiCommand_GetFloatParam(struct KoiCommand *command, uintptr_t index, do
  * Actual string length (excluding null terminator), or required buffer size if insufficient
  * Returns 0 on error or type mismatch
  */
-uintptr_t KoiCommand_GetStringParam(struct KoiCommand *command,
-                                    uintptr_t index,
-                                    char *buffer,
-                                    uintptr_t buffer_size);
+uintptr_t KoiCompositeDict_GetStringValue(struct KoiCompositeDict *dict,
+                                          const char *key,
+                                          char *buffer,
+                                          uintptr_t buffer_size);
 
 /**
- * Get string parameter length
+ * Get string value length from composite dict by key
  *
  * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
  *
  * # Returns
- * Required buffer size (including null terminator), or 0 on error
+ * Required buffer size (including null terminator), or 0 on error or type mismatch
  */
-uintptr_t KoiCommand_GetStringParamLen(struct KoiCommand *command, uintptr_t index);
-
-/**
- * Get composite parameter name into provided buffer
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
- * * `buffer` - Buffer for name output
- * * `buffer_size` - Buffer size
- *
- * # Returns
- * Actual name length (excluding null terminator), or required buffer size if insufficient
- * Returns 0 on error or if parameter is not composite
- */
-uintptr_t KoiCommand_GetCompositeParamName(struct KoiCommand *command,
-                                           uintptr_t index,
-                                           char *buffer,
-                                           uintptr_t buffer_size);
-
-/**
- * Get composite parameter name length
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
- *
- * # Returns
- * Required buffer size (including null terminator), or 0 on error
- */
-uintptr_t KoiCommand_GetCompositeParamNameLen(struct KoiCommand *command, uintptr_t index);
-
-/**
- * Check if command is a text command (@text)
- *
- * # Arguments
- * * `command` - Command object pointer
- *
- * # Returns
- * 1 if text command, 0 otherwise or on error
- */
-int32_t KoiCommand_IsTextCommand(struct KoiCommand *command);
-
-/**
- * Check if command is an annotation command (@annotation)
- *
- * # Arguments
- * * `command` - Command object pointer
- *
- * # Returns
- * 1 if annotation command, 0 otherwise or on error
- */
-int32_t KoiCommand_IsAnnotationCommand(struct KoiCommand *command);
-
-/**
- * Check if command is a number command (@number)
- *
- * # Arguments
- * * `command` - Command object pointer
- *
- * # Returns
- * 1 if number command, 0 otherwise or on error
- */
-int32_t KoiCommand_IsNumberCommand(struct KoiCommand *command);
-
-/**
- * Add a new integer parameter to command
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `value` - Integer value
- *
- * # Returns
- * 0 on success, non-zero on error
- */
-int32_t KoiCommand_AddIntParameter(struct KoiCommand *command, int64_t value);
-
-/**
- * Add a new float parameter to command
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `value` - Float value
- *
- * # Returns
- * 0 on success, non-zero on error
- */
-int32_t KoiCommand_AddFloatParameter(struct KoiCommand *command, double value);
-
-/**
- * Add a new string parameter to command
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `value` - String value (null-terminated C string)
- *
- * # Returns
- * 0 on success, non-zero on error
- */
-int32_t KoiCommand_AddStringParameter(struct KoiCommand *command, const char *value);
-
-/**
- * Remove parameter from command by index
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index to remove
- *
- * # Returns
- * 0 on success, non-zero on error
- */
-int32_t KoiCommand_RemoveParameter(struct KoiCommand *command, uintptr_t index);
-
-/**
- * Clear all parameters from command
- *
- * # Arguments
- * * `command` - Command object pointer
- *
- * # Returns
- * 0 on success, non-zero on error
- */
-int32_t KoiCommand_ClearParameters(struct KoiCommand *command);
-
-/**
- * Modify integer parameter value
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
- * * `value` - New integer value
- *
- * # Returns
- * 0 on success, non-zero on error or type mismatch
- */
-int32_t KoiCommand_SetIntParameter(struct KoiCommand *command, uintptr_t index, int64_t value);
-
-/**
- * Modify float parameter value
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
- * * `value` - New float value
- *
- * # Returns
- * 0 on success, non-zero on error or type mismatch
- */
-int32_t KoiCommand_SetFloatParameter(struct KoiCommand *command, uintptr_t index, double value);
-
-/**
- * Modify string parameter value
- *
- * # Arguments
- * * `command` - Command object pointer
- * * `index` - Parameter index
- * * `value` - New string value (null-terminated C string)
- *
- * # Returns
- * 0 on success, non-zero on error or type mismatch
- */
-int32_t KoiCommand_SetStringParameter(struct KoiCommand *command,
-                                      uintptr_t index,
-                                      const char *value);
+uintptr_t KoiCompositeDict_GetStringValueLen(struct KoiCompositeDict *dict, const char *key);
 
 /**
  * Get composite list parameter from command
@@ -920,261 +1074,60 @@ int32_t KoiCompositeList_Clear(struct KoiCompositeList *list);
 void KoiCompositeList_Del(struct KoiCompositeList *list);
 
 /**
- * Create a new composite dict parameter
- *
- * Creates an empty dictionary with no key-value pairs. The returned pointer
- * must be freed using KoiCompositeDict_Del when no longer needed to avoid memory leaks.
- *
- * # Returns
- * Pointer to the new composite dict parameter, or null on error
- *
- * # Safety
- * The returned pointer must not be used after calling KoiCompositeDict_Del on it.
- * The caller is responsible for memory management of the returned object.
- */
-struct KoiCompositeDict *KoiCompositeDict_New(void);
-
-/**
- * Get composite dict parameter from command
- *
- * Retrieves a dictionary parameter from a command at the specified index.
- * The parameter must be of dictionary type, otherwise null is returned.
- *
- * # Ownership and Lifetime
- *
- * The returned pointer is a borrowed reference to data owned by the command.
- * It must NOT be freed with KoiCompositeDict_Del. The pointer is only valid
- * as long as the command object exists and is not modified or destroyed.
+ * Get number of parameters in command
  *
  * # Arguments
  * * `command` - Command object pointer
- * * `index` - Parameter index (0-based)
  *
  * # Returns
- * Pointer to composite dict parameter, or null on error:
- * - null if command is null
- * - null if index is out of bounds
- * - null if parameter at index is not a dictionary
- *
- * # Safety
- * The command pointer must be either null or point to a valid KoiCommand object.
- * The returned pointer must NOT be freed with KoiCompositeDict_Del as it is owned by the command.
- * The returned pointer becomes invalid if the command is destroyed or modified.
+ * Number of parameters, or 0 if command is null
  */
-struct KoiCompositeDict *KoiCommand_GetCompositeDict(struct KoiCommand *command, uintptr_t index);
+uintptr_t KoiCommand_GetParamCount(struct KoiCommand *command);
 
 /**
- * Get number of entries in dict
- *
- * Returns the count of key-value pairs currently stored in the dictionary.
- * This is useful for iteration or checking if the dictionary is empty.
+ * Get parameter type (unified enum for both basic and composite types)
  *
  * # Arguments
- * * `dict` - Composite dict parameter pointer
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
  *
  * # Returns
- * Number of entries in the dict, 0 on error:
- * - 0 if dict is null
- * - 0 if dict is not a valid dictionary
- *
- * # Safety
- * The dict pointer must be a valid KoiCompositeDict pointer.
+ * Parameter type, or KoiParamType::Invalid on error
  */
-uintptr_t KoiCompositeDict_GetLength(struct KoiCompositeDict *dict);
+int32_t KoiCommand_GetParamType(struct KoiCommand *command, uintptr_t index);
 
 /**
- * Remove entry from composite dict by key
- *
- * Removes a key-value pair from the dictionary based on the provided key.
- * If the key does not exist in the dictionary, the function returns an error.
+ * Get integer value from basic parameter
  *
  * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `key` - Key name (null-terminated UTF-8 string)
- *
- * # Returns
- * 0 on success, non-zero on error:
- * - -1 if dict or key is null
- * - -2 if key contains invalid UTF-8
- * - -3 if key not found in dictionary
- * - -4 if dict is not a valid dictionary
- *
- * # Safety
- * The dict pointer must be a valid KoiCompositeDict pointer.
- * The key pointer must be a valid null-terminated C string.
- */
-int32_t KoiCompositeDict_Remove(struct KoiCompositeDict *dict, const char *key);
-
-/**
- * Clear all entries from composite dict
- *
- * Removes all key-value pairs from the dictionary, making it empty.
- * This operation is irreversible but does not deallocate the dictionary itself.
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- *
- * # Returns
- * 0 on success, non-zero on error:
- * - -1 if dict is null
- * - -3 if dict is not a valid dictionary
- *
- * # Safety
- * The dict pointer must be a valid KoiCompositeDict pointer.
- */
-int32_t KoiCompositeDict_Clear(struct KoiCompositeDict *dict);
-
-/**
- * Free composite dict parameter
- *
- * Deallocates the memory used by the dictionary and all its key-value pairs.
- * After calling this function, the pointer becomes invalid and must not be used.
- * This function should only be called on dictionaries created with KoiCompositeDict_New,
- * not on dictionaries obtained from KoiCommand_GetCompositeDict.
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- *
- * # Safety
- * The dict pointer must be a valid KoiCompositeDict pointer created with KoiCompositeDict_New.
- * Do not call this function on pointers obtained from KoiCommand_GetCompositeDict.
- */
-void KoiCompositeDict_Del(struct KoiCompositeDict *dict);
-
-/**
- * Set integer value in composite dict by key
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `key` - Key name
- * * `value` - Integer value to set
- *
- * # Returns
- * 0 on success, non-zero on error
- */
-int32_t KoiCompositeDict_SetIntValue(struct KoiCompositeDict *dict, const char *key, int64_t value);
-
-/**
- * Set float value in composite dict by key
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `key` - Key name
- * * `value` - Float value to set
- *
- * # Returns
- * 0 on success, non-zero on error
- */
-int32_t KoiCompositeDict_SetFloatValue(struct KoiCompositeDict *dict,
-                                       const char *key,
-                                       double value);
-
-/**
- * Set string value in composite dict by key
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `key` - Key name
- * * `value` - String value to set
- *
- * # Returns
- * 0 on success, non-zero on error
- */
-int32_t KoiCompositeDict_SetStringValue(struct KoiCompositeDict *dict,
-                                        const char *key,
-                                        const char *value);
-
-/**
- * Get dict key by index into provided buffer
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `index` - Entry index
- * * `buffer` - Buffer for key output
- * * `buffer_size` - Buffer size
- *
- * # Returns
- * Actual key length (excluding null terminator), or required buffer size if insufficient
- * Returns 0 on error
- */
-uintptr_t KoiCompositeDict_GetKeybyIndex(struct KoiCompositeDict *dict,
-                                         uintptr_t index,
-                                         char *buffer,
-                                         uintptr_t buffer_size);
-
-/**
- * Get dict key length by index
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `index` - Entry index
- *
- * # Returns
- * Required buffer size (including null terminator)
- * Returns 0 on error
- */
-uintptr_t KoiCompositeDict_GetKeyLenByIndex(struct KoiCompositeDict *dict, uintptr_t index);
-
-/**
- * Get dict value type by index
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `index` - Entry index
- *
- * # Returns
- * Value type as KoiParamType enum value
- */
-int32_t KoiCompositeDict_GetValueTypeByIndex(struct KoiCompositeDict *dict, uintptr_t index);
-
-/**
- * Get value type from composite dict by key
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `key` - Key name
- *
- * # Returns
- * Value type as KoiParamType enum value
- */
-int32_t KoiCompositeDict_GetValueType(struct KoiCompositeDict *dict, const char *key);
-
-/**
- * Get integer value from composite dict by key
- *
- * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `key` - Key name
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
  * * `out_value` - Pointer to store integer value
  *
  * # Returns
  * 0 on success, non-zero on error or type mismatch
  */
-int32_t KoiCompositeDict_GetIntValue(struct KoiCompositeDict *dict,
-                                     const char *key,
-                                     int64_t *out_value);
+int32_t KoiCommand_GetIntParam(struct KoiCommand *command, uintptr_t index, int64_t *out_value);
 
 /**
- * Get float value from composite dict by key
+ * Get float value from basic parameter
  *
  * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `key` - Key name
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
  * * `out_value` - Pointer to store float value
  *
  * # Returns
  * 0 on success, non-zero on error or type mismatch
  */
-int32_t KoiCompositeDict_GetFloatValue(struct KoiCompositeDict *dict,
-                                       const char *key,
-                                       double *out_value);
+int32_t KoiCommand_GetFloatParam(struct KoiCommand *command, uintptr_t index, double *out_value);
 
 /**
- * Get string value from composite dict by key into provided buffer
+ * Get string value from basic parameter into provided buffer
  *
  * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `key` - Key name
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
  * * `buffer` - Buffer for string output
  * * `buffer_size` - Buffer size
  *
@@ -1182,22 +1135,185 @@ int32_t KoiCompositeDict_GetFloatValue(struct KoiCompositeDict *dict,
  * Actual string length (excluding null terminator), or required buffer size if insufficient
  * Returns 0 on error or type mismatch
  */
-uintptr_t KoiCompositeDict_GetStringValue(struct KoiCompositeDict *dict,
-                                          const char *key,
-                                          char *buffer,
-                                          uintptr_t buffer_size);
+uintptr_t KoiCommand_GetStringParam(struct KoiCommand *command,
+                                    uintptr_t index,
+                                    char *buffer,
+                                    uintptr_t buffer_size);
 
 /**
- * Get string value length from composite dict by key
+ * Get string parameter length
  *
  * # Arguments
- * * `dict` - Composite dict parameter pointer
- * * `key` - Key name
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
  *
  * # Returns
- * Required buffer size (including null terminator), or 0 on error or type mismatch
+ * Required buffer size (including null terminator), or 0 on error
  */
-uintptr_t KoiCompositeDict_GetStringValueLen(struct KoiCompositeDict *dict, const char *key);
+uintptr_t KoiCommand_GetStringParamLen(struct KoiCommand *command, uintptr_t index);
+
+/**
+ * Get composite parameter name into provided buffer
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
+ * * `buffer` - Buffer for name output
+ * * `buffer_size` - Buffer size
+ *
+ * # Returns
+ * Actual name length (excluding null terminator), or required buffer size if insufficient
+ * Returns 0 on error or if parameter is not composite
+ */
+uintptr_t KoiCommand_GetCompositeParamName(struct KoiCommand *command,
+                                           uintptr_t index,
+                                           char *buffer,
+                                           uintptr_t buffer_size);
+
+/**
+ * Get composite parameter name length
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
+ *
+ * # Returns
+ * Required buffer size (including null terminator), or 0 on error
+ */
+uintptr_t KoiCommand_GetCompositeParamNameLen(struct KoiCommand *command, uintptr_t index);
+
+/**
+ * Check if command is a text command (@text)
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ *
+ * # Returns
+ * 1 if text command, 0 otherwise or on error
+ */
+int32_t KoiCommand_IsTextCommand(struct KoiCommand *command);
+
+/**
+ * Check if command is an annotation command (@annotation)
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ *
+ * # Returns
+ * 1 if annotation command, 0 otherwise or on error
+ */
+int32_t KoiCommand_IsAnnotationCommand(struct KoiCommand *command);
+
+/**
+ * Check if command is a number command (@number)
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ *
+ * # Returns
+ * 1 if number command, 0 otherwise or on error
+ */
+int32_t KoiCommand_IsNumberCommand(struct KoiCommand *command);
+
+/**
+ * Add a new integer parameter to command
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `value` - Integer value
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCommand_AddIntParameter(struct KoiCommand *command, int64_t value);
+
+/**
+ * Add a new float parameter to command
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `value` - Float value
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCommand_AddFloatParameter(struct KoiCommand *command, double value);
+
+/**
+ * Add a new string parameter to command
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `value` - String value (null-terminated C string)
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCommand_AddStringParameter(struct KoiCommand *command, const char *value);
+
+/**
+ * Remove parameter from command by index
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index to remove
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCommand_RemoveParameter(struct KoiCommand *command, uintptr_t index);
+
+/**
+ * Clear all parameters from command
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCommand_ClearParameters(struct KoiCommand *command);
+
+/**
+ * Modify integer parameter value
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
+ * * `value` - New integer value
+ *
+ * # Returns
+ * 0 on success, non-zero on error or type mismatch
+ */
+int32_t KoiCommand_SetIntParameter(struct KoiCommand *command, uintptr_t index, int64_t value);
+
+/**
+ * Modify float parameter value
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
+ * * `value` - New float value
+ *
+ * # Returns
+ * 0 on success, non-zero on error or type mismatch
+ */
+int32_t KoiCommand_SetFloatParameter(struct KoiCommand *command, uintptr_t index, double value);
+
+/**
+ * Modify string parameter value
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
+ * * `value` - New string value (null-terminated C string)
+ *
+ * # Returns
+ * 0 on success, non-zero on error or type mismatch
+ */
+int32_t KoiCommand_SetStringParameter(struct KoiCommand *command,
+                                      uintptr_t index,
+                                      const char *value);
 
 /**
  * Create a new KoiLang parser
@@ -1544,6 +1660,84 @@ void KoiInputSource_Del(struct KoiInputSource *input);
  * If config is NULL, this function does nothing.
  */
 void KoiParserConfig_Init(struct KoiParserConfig *config);
+
+/**
+ * Create a new Writer with custom output VTable
+ */
+struct KoiWriter *KoiWriter_NewFromVTable(const struct KoiWriterOutputVTable *vtable,
+                                          void *user_data,
+                                          const struct KoiWriterConfig *config);
+
+/**
+ * Create a new Writer that writes to a file
+ */
+struct KoiWriter *KoiWriter_NewFromFile(const char *path, const struct KoiWriterConfig *config);
+
+/**
+ * Create a new Writer that writes to a string output
+ */
+struct KoiWriter *KoiWriter_NewFromStringOutput(struct KoiStringOutput *output,
+                                                const struct KoiWriterConfig *config);
+
+/**
+ * Delete Writer
+ */
+void KoiWriter_Del(struct KoiWriter *writer);
+
+/**
+ * Write a command
+ */
+int32_t KoiWriter_WriteCommand(struct KoiWriter *writer, const struct KoiCommand *command);
+
+/**
+ * Write a command with custom options
+ */
+int32_t KoiWriter_WriteCommandWithOptions(struct KoiWriter *writer,
+                                          const struct KoiCommand *command,
+                                          const struct KoiFormatterOptions *options,
+                                          const struct KoiParamOption *param_options);
+
+/**
+ * Increase indentation
+ */
+void KoiWriter_IncIndent(struct KoiWriter *writer);
+
+/**
+ * Decrease indentation
+ */
+void KoiWriter_DecIndent(struct KoiWriter *writer);
+
+/**
+ * Get current indentation
+ */
+uintptr_t KoiWriter_GetIndent(const struct KoiWriter *writer);
+
+/**
+ * Write a newline
+ */
+int32_t KoiWriter_Newline(struct KoiWriter *writer);
+
+/**
+ * Initialize KoiFormatterOptions with default values
+ */
+void KoiFormatterOptions_Init(struct KoiFormatterOptions *options);
+
+/**
+ * Initialize KoiWriterConfig with default values
+ */
+void KoiWriterConfig_Init(struct KoiWriterConfig *config);
+
+struct KoiStringOutput *KoiStringOutput_New(void);
+
+void KoiStringOutput_Del(struct KoiStringOutput *output);
+
+/**
+ * Get content of the string buffer
+ * Returns length of string. Copies content to buffer if provided.
+ */
+uintptr_t KoiStringOutput_GetString(struct KoiStringOutput *output,
+                                    char *buffer,
+                                    uintptr_t buffer_len);
 
 #ifdef __cplusplus
 }  // extern "C"

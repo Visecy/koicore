@@ -40,8 +40,9 @@ impl Generators {
             },
             "@number" => {
                 // Number command - write as number with parameters
-                if let Some(Parameter::Basic(value)) = command.params.first() {
-                    write!(writer, "{}", Formatters::format_value(value, options))?;
+                if let Some(Parameter::Basic(Value::Int(value))) = command.params.first() {
+                    let hashes = "#".repeat(config.command_threshold);
+                    write!(writer, "{}{}", hashes, value)?;
                     
                     // Add remaining parameters
                     for (i, param) in command.params.iter().skip(1).enumerate() {
@@ -252,9 +253,9 @@ impl Generators {
         config: &WriterConfig
     ) -> FormatterOptions {
         match options {
-            Some(opt) => opt.clone(),
+            Some(opt) => Self::merge_options(&config.global_options, opt),
             None => match config.command_options.get(command_name) {
-                Some(opt) => opt.clone(),
+                Some(opt) => Self::merge_options(&config.global_options, opt),
                 None => config.global_options.clone(),
             },
         }
@@ -527,6 +528,6 @@ mod tests {
         ).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "123 extra");
+        assert_eq!(result, "#123 extra");
     }
 }
