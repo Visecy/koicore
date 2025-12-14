@@ -1,24 +1,40 @@
+use koicore::WriterConfig;
 use koicore::writer::{FormatterOptions, NumberFormat};
-use std::ffi::c_char;
+use std::collections::HashMap;
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 /// Number format for numeric values
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub enum KoiNumberFormat {
-    Decimal = 0,
-    Hex = 1,
-    Octal = 2,
-    Binary = 3,
+    Unknown = 0,
+    Decimal = 1,
+    Hex = 2,
+    Octal = 3,
+    Binary = 4,
 }
 
 impl From<KoiNumberFormat> for NumberFormat {
     fn from(format: KoiNumberFormat) -> Self {
         match format {
+            KoiNumberFormat::Unknown => NumberFormat::Unknown,
             KoiNumberFormat::Decimal => NumberFormat::Decimal,
             KoiNumberFormat::Hex => NumberFormat::Hex,
             KoiNumberFormat::Octal => NumberFormat::Octal,
             KoiNumberFormat::Binary => NumberFormat::Binary,
+        }
+    }
+}
+
+impl From<NumberFormat> for KoiNumberFormat {
+    fn from(format: NumberFormat) -> Self {
+        match format {
+            NumberFormat::Unknown => KoiNumberFormat::Unknown,
+            NumberFormat::Decimal => KoiNumberFormat::Decimal,
+            NumberFormat::Hex => KoiNumberFormat::Hex,
+            NumberFormat::Octal => KoiNumberFormat::Octal,
+            NumberFormat::Binary => KoiNumberFormat::Binary,
         }
     }
 }
@@ -36,6 +52,7 @@ pub struct KoiFormatterOptions {
     pub number_format: KoiNumberFormat,
     pub newline_before_param: bool,
     pub newline_after_param: bool,
+    pub should_override: bool,
 }
 
 impl From<KoiFormatterOptions> for FormatterOptions {
@@ -50,6 +67,24 @@ impl From<KoiFormatterOptions> for FormatterOptions {
             number_format: opt.number_format.into(),
             newline_before_param: opt.newline_before_param,
             newline_after_param: opt.newline_after_param,
+            should_override: opt.should_override,
+        }
+    }
+}
+
+impl From<FormatterOptions> for KoiFormatterOptions {
+    fn from(opt: FormatterOptions) -> Self {
+        Self {
+            indent: opt.indent,
+            use_tabs: opt.use_tabs,
+            newline_before: opt.newline_before,
+            newline_after: opt.newline_after,
+            compact: opt.compact,
+            force_quotes_for_vars: opt.force_quotes_for_vars,
+            number_format: opt.number_format.into(),
+            newline_before_param: opt.newline_before_param,
+            newline_after_param: opt.newline_after_param,
+            should_override: opt.should_override,
         }
     }
 }
@@ -57,27 +92,10 @@ impl From<KoiFormatterOptions> for FormatterOptions {
 /// Initialize KoiFormatterOptions with default values
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiFormatterOptions_Init(options: *mut KoiFormatterOptions) {
-    if !options.is_null() {
+    let options = unsafe { options.as_mut() };
+    if let Some(options) = options {
         let defaults = FormatterOptions::default();
-        let number_format = match defaults.number_format {
-            NumberFormat::Decimal => KoiNumberFormat::Decimal,
-            NumberFormat::Hex => KoiNumberFormat::Hex,
-            NumberFormat::Octal => KoiNumberFormat::Octal,
-            NumberFormat::Binary => KoiNumberFormat::Binary,
-        };
-
-        // Write directly to the pointer
-        unsafe {
-            (*options).indent = defaults.indent;
-            (*options).use_tabs = defaults.use_tabs;
-            (*options).newline_before = defaults.newline_before;
-            (*options).newline_after = defaults.newline_after;
-            (*options).compact = defaults.compact;
-            (*options).force_quotes_for_vars = defaults.force_quotes_for_vars;
-            (*options).number_format = number_format;
-            (*options).newline_before_param = defaults.newline_before_param;
-            (*options).newline_after_param = defaults.newline_after_param;
-        }
+        *options = defaults.into();
     }
 }
 
@@ -126,16 +144,44 @@ pub struct KoiWriterConfig {
     pub command_options: *const KoiCommandOption,
 }
 
+/// Helper to convert raw pointer array to HashMap
+unsafe fn parse_command_options(ptr: *const KoiCommandOption) -> HashMap<String, FormatterOptions> {
+    unsafe {
+        let mut map = HashMap::new();
+        if ptr.is_null() {
+            return map;
+        }
+
+        let mut current = ptr;
+        while !(*current).name.is_null() {
+            let name_str = CStr::from_ptr((*current).name)
+                .to_string_lossy()
+                .into_owned();
+            map.insert(name_str, (*current).options.into());
+            current = current.add(1);
+        }
+        map
+    }
+}
+
+impl From<&KoiWriterConfig> for WriterConfig {
+    fn from(config: &KoiWriterConfig) -> Self {
+        Self {
+            global_options: config.global_options.into(),
+            command_threshold: config.command_threshold,
+            command_options: unsafe { parse_command_options(config.command_options) },
+        }
+    }
+}
+
 /// Initialize KoiWriterConfig with default values
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriterConfig_Init(config: *mut KoiWriterConfig) {
-    if !config.is_null() {
-        unsafe {
-            // First init global options
-            KoiFormatterOptions_Init(&mut (*config).global_options);
-            // koicore::writer::WriterConfig::default().command_threshold is 1
-            (*config).command_threshold = 1;
-            (*config).command_options = ptr::null();
-        }
+    let config = unsafe { config.as_mut() };
+    if let Some(config) = config {
+        let defaults = WriterConfig::default();
+        config.global_options = defaults.global_options.into();
+        config.command_threshold = defaults.command_threshold;
+        config.command_options = ptr::null();
     }
 }

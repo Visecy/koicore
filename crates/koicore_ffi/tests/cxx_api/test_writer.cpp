@@ -141,7 +141,6 @@ TEST(WriterTest, TestCommandOptions) {
     KoiFormatterOptions param_opts;
     KoiFormatterOptions_Init(&param_opts);
     param_opts.indent = 2;
-    param_opts.force_quotes_for_vars = true;
     param_opts.newline_before_param = true;
     KoiWriter_WriteCommandWithOptions(writer, test2, &param_opts, nullptr);
     

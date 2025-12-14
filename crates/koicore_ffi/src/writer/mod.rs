@@ -1,3 +1,4 @@
+use koicore::WriterConfig;
 use koicore::command::Command;
 use koicore::writer::{FormatterOptions, ParamFormatSelector, Writer};
 use std::collections::HashMap;
@@ -24,37 +25,6 @@ pub struct KoiWriter {
     inner: Writer<Box<dyn Write + Send>>,
 }
 
-/// Helper to convert raw pointer array to HashMap
-unsafe fn parse_command_options(ptr: *const KoiCommandOption) -> HashMap<String, FormatterOptions> {
-    unsafe {
-        let mut map = HashMap::new();
-        if ptr.is_null() {
-            return map;
-        }
-
-        let mut current = ptr;
-        while !(*current).name.is_null() {
-            let name_str = CStr::from_ptr((*current).name)
-                .to_string_lossy()
-                .into_owned();
-            map.insert(name_str, (*current).options.into());
-            current = current.add(1);
-        }
-        map
-    }
-}
-
-/// Helper to convert WriterConfig
-unsafe fn convert_config(config: &KoiWriterConfig) -> koicore::writer::WriterConfig {
-    unsafe {
-        koicore::writer::WriterConfig {
-            global_options: config.global_options.into(),
-            command_threshold: config.command_threshold,
-            command_options: parse_command_options(config.command_options),
-        }
-    }
-}
-
 /// Create a new Writer with custom output VTable
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_NewFromVTable(
@@ -67,7 +37,7 @@ pub unsafe extern "C" fn KoiWriter_NewFromVTable(
     }
 
     let output = unsafe { CustomWriterOutput::new(vtable, user_data) };
-    let config = unsafe { convert_config(&*config) };
+    let config = unsafe { WriterConfig::from(&*config) };
 
     let boxed_output: Box<dyn Write + Send> = Box::new(output);
     let writer = Writer::new(boxed_output, config);
@@ -95,7 +65,7 @@ pub unsafe extern "C" fn KoiWriter_NewFromFile(
         Err(_) => return ptr::null_mut(),
     };
 
-    let config = unsafe { convert_config(&*config) };
+    let config = unsafe { WriterConfig::from(&*config) };
     // Use BufWriter for performance
     let boxed_output: Box<dyn Write + Send> = Box::new(BufWriter::new(file));
     let writer = Writer::new(boxed_output, config);
@@ -118,7 +88,7 @@ pub unsafe extern "C" fn KoiWriter_NewFromStringOutput(
         buffer: output_obj.buffer.clone(),
     };
 
-    let config = unsafe { convert_config(&*config) };
+    let config = unsafe { WriterConfig::from(&*config) };
     let boxed_output: Box<dyn Write + Send> = Box::new(buffer_writer);
     let writer = Writer::new(boxed_output, config);
 

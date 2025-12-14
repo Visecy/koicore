@@ -35,10 +35,11 @@ typedef enum KoiFileInputEncodingStrategy {
  * Number format for numeric values
  */
 typedef enum KoiNumberFormat {
-  Decimal = 0,
-  Hex = 1,
-  Octal = 2,
-  Binary = 3,
+  Unknown = 0,
+  Decimal = 1,
+  Hex = 2,
+  Octal = 3,
+  Binary = 4,
 } KoiNumberFormat;
 
 /**
@@ -213,6 +214,7 @@ typedef struct KoiFormatterOptions {
   enum KoiNumberFormat number_format;
   bool newline_before_param;
   bool newline_after_param;
+  bool should_override;
 } KoiFormatterOptions;
 
 /**

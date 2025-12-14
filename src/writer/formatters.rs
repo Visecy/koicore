@@ -13,7 +13,7 @@ impl Formatters {
     /// Format a number according to the specified format
     pub fn format_number(num: &i64, options: &FormatterOptions) -> String {
         match options.number_format {
-            NumberFormat::Decimal => num.to_string(),
+            NumberFormat::Decimal | NumberFormat::Unknown => num.to_string(),
             NumberFormat::Hex => format!("0x{:x}", num),
             NumberFormat::Octal => format!("0o{:o}", num),
             NumberFormat::Binary => format!("0b{:b}", num),

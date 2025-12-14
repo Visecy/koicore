@@ -74,7 +74,7 @@ pub struct KoiStringOutput {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiStringOutput_New() -> *mut KoiStringOutput {
+pub extern "C" fn KoiStringOutput_New() -> *mut KoiStringOutput {
     let output = KoiStringOutput {
         buffer: Arc::new(RwLock::new(Vec::new())),
     };
@@ -82,7 +82,7 @@ pub unsafe extern "C" fn KoiStringOutput_New() -> *mut KoiStringOutput {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiStringOutput_Del(output: *mut KoiStringOutput) {
+pub extern "C" fn KoiStringOutput_Del(output: *mut KoiStringOutput) {
     if !output.is_null() {
         unsafe {
             drop(Box::from_raw(output));
@@ -93,7 +93,7 @@ pub unsafe extern "C" fn KoiStringOutput_Del(output: *mut KoiStringOutput) {
 /// Get content of the string buffer
 /// Returns length of string. Copies content to buffer if provided.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiStringOutput_GetString(
+pub extern "C" fn KoiStringOutput_GetString(
     output: *mut KoiStringOutput,
     buffer: *mut c_char,
     buffer_len: usize,
@@ -129,7 +129,7 @@ impl io::Write for SharedBufferWriter {
         let mut buffer = self
             .buffer
             .write()
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "Lock poisoned"))?;
+            .map_err(|_| io::Error::other("Lock poisoned"))?;
         buffer.write(buf)
     }
 
