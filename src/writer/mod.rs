@@ -17,20 +17,20 @@ mod formatters;
 mod generators;
 
 /// KoiLang writer that can write to any output implementing the `Write` trait
-pub struct Writer<'a, T: Write> {
-    writer: &'a mut T,
+pub struct Writer<T: Write> {
+    writer: T,
     config: WriterConfig,
     current_indent: usize,
     last_was_newline: bool,
 }
 
-impl<'a, T: Write> Writer<'a, T> {
+impl<T: Write> Writer<T> {
     /// Create a new KoiLang writer
     /// 
     /// # Arguments
     /// * `writer` - Output to write to
     /// * `config` - Configuration for the writer
-    pub fn new(writer: &'a mut T, config: WriterConfig) -> Self {
+    pub fn new(writer: T, config: WriterConfig) -> Self {
         Self {
             writer,
             config,
@@ -60,22 +60,21 @@ impl<'a, T: Write> Writer<'a, T> {
             &self.config
         );
         
-        // Write newline before if needed and not already at start of line
+        // Write additional newline before if needed and not already at start of line
         if effective_options.newline_before && !self.last_was_newline {
-            writeln!(self.writer)?;
-            self.last_was_newline = true;
+            self.newline()?;
         }
         
         // Write indentation
         generators::Generators::write_indent(
-            self.writer, 
+            &mut self.writer, 
             self.current_indent, 
             &effective_options
         )?;
         
         // Write the command with parameter-specific formatting
         generators::Generators::write_command_with_param_options(
-            self.writer,
+            &mut self.writer,
             command,
             &self.config,
             &effective_options,
@@ -83,10 +82,12 @@ impl<'a, T: Write> Writer<'a, T> {
             self.current_indent
         )?;
         
-        // Write newline after if needed and not already at end of line
+        // Add a newline after the command
+        writeln!(self.writer)?;
+        
+        // Write additional newline after if needed and not already at end of line
         if effective_options.newline_after {
-            writeln!(self.writer)?;
-            self.last_was_newline = true;
+            self.newline()?;
         } else {
             // Update last_was_newline based on the command content
             // For simplicity, we'll assume non-newline ending for now
@@ -139,7 +140,7 @@ mod tests {
         writer.write_command(&cmd).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "#character Alice \"Hello, world!\"");
+        assert_eq!(result, "#character Alice \"Hello, world!\"\n");
     }
     
     #[test]
@@ -153,7 +154,7 @@ mod tests {
         writer.write_command(&cmd).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "Hello, world!");
+        assert_eq!(result, "Hello, world!\n");
     }
     
     #[test]
@@ -167,7 +168,7 @@ mod tests {
         writer.write_command(&cmd).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "## This is an annotation");
+        assert_eq!(result, "## This is an annotation\n");
     }
     
     #[test]
@@ -181,7 +182,7 @@ mod tests {
         writer.write_command(&cmd).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "123 extra");
+        assert_eq!(result, "#123 extra\n");
     }
     
     #[test]
@@ -201,7 +202,7 @@ mod tests {
         writer.write_command_with_options(&cmd, Some(&custom_options), None).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "\n#character Alice\n");
+        assert_eq!(result, "\n#character Alice\n\n");
     }
     
     #[test]
@@ -224,7 +225,7 @@ mod tests {
         writer.write_command(&cmd).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "#character \"Alice\" \"Bob\"");
+        assert_eq!(result, "#character \"Alice\" \"Bob\"\n");
     }
     
     #[test]
@@ -241,7 +242,7 @@ mod tests {
         writer.write_command(&cmd).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "#character \"123invalid\" \"with spaces\"");
+        assert_eq!(result, "#character \"123invalid\" \"with spaces\"\n");
     }
     
     #[test]
@@ -280,7 +281,7 @@ mod tests {
         writer.write_command_with_options(&cmd, None, Some(&param_options)).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "#test 0x2a 0o377 0b111");
+        assert_eq!(result, "#test 0x2a 0o377 0b111\n");
     }
     
     #[test]
@@ -313,7 +314,7 @@ mod tests {
         writer.write_command_with_options(&cmd, None, Some(&param_options)).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "#test param1\n    param2\n    param3");
+        assert_eq!(result, "#test param1\n    param2\n    param3\n");
     }
     
     #[test]
@@ -346,14 +347,14 @@ mod tests {
         
         let result = String::from_utf8(buffer).unwrap();
         // Should only have one newline between parameters, not two
-        assert_eq!(result, "#test param1\n    param2");
+        assert_eq!(result, "#test param1\n    param2\n");
     }
     
     #[test]
     fn test_write_with_composite_param_formatting() {
         let cmd = Command::new("test", vec![
             Parameter::from("regular"),
-            Parameter::from("(composite, 42)"),
+            Parameter::from(("composite", 42)),
             Parameter::from("another")
         ]);
         
@@ -373,6 +374,25 @@ mod tests {
         writer.write_command_with_options(&cmd, None, Some(&param_options)).unwrap();
         
         let result = String::from_utf8(buffer).unwrap();
-        assert_eq!(result, "#test regular \"(composite, 42)\" another");
+        assert_eq!(result, "#test regular composite(0x2a) another\n");
+    }
+
+    #[test]
+    fn test_mutliline_command() {
+        let cmd = Command::new("test", vec![
+            Parameter::from("regular"),
+            Parameter::from(("composite", 42)),
+            Parameter::from("another")
+        ]);
+        
+        let config = WriterConfig::default();
+        let mut buffer = Vec::new();
+        let mut writer = Writer::new(&mut buffer, config);
+        
+        writer.write_command(&cmd).unwrap();
+        writer.write_command(&cmd).unwrap();
+        
+        let result = String::from_utf8(buffer).unwrap();
+        assert_eq!(result, "#test regular composite(42) another\n#test regular composite(42) another\n");
     }
 }

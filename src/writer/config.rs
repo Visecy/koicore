@@ -1,5 +1,5 @@
 //! Configuration types for KoiLang writer
-//! 
+//!
 //! This module defines the configuration types used by the KoiLang writer,
 //! including number formats, formatter options, and parameter selectors.
 
@@ -8,8 +8,10 @@ use std::collections::HashMap;
 /// Number format options for numeric values
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub enum NumberFormat {
-    /// Decimal format (default)
+    /// Unknown format (default)
     #[default]
+    Unknown,
+    /// Decimal format
     Decimal,
     /// Hexadecimal format
     Hex,
@@ -29,7 +31,7 @@ pub enum ParamFormatSelector {
 }
 
 /// Formatting options for KoiLang generation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct FormatterOptions {
     /// Number of spaces to use for indentation
     pub indent: usize,
@@ -49,22 +51,8 @@ pub struct FormatterOptions {
     pub newline_before_param: bool,
     /// Whether to add a newline after this specific parameter
     pub newline_after_param: bool,
-}
-
-impl Default for FormatterOptions {
-    fn default() -> Self {
-        Self {
-            indent: 4,
-            use_tabs: false,
-            newline_before: false,
-            newline_after: false,
-            compact: false,
-            force_quotes_for_vars: false,
-            number_format: NumberFormat::Decimal,
-            newline_before_param: false,
-            newline_after_param: false,
-        }
-    }
+    /// Whether to override the base options completely
+    pub should_override: bool,
 }
 
 /// Configuration for the KoiLang writer
@@ -82,6 +70,8 @@ impl Default for WriterConfig {
     fn default() -> Self {
         Self {
             global_options: FormatterOptions {
+                indent: 4,
+                number_format: NumberFormat::Decimal,
                 ..Default::default()
             },
             command_options: HashMap::new(),
@@ -93,60 +83,39 @@ impl Default for WriterConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    #[test]
-    fn test_number_format_default() {
-        let default = NumberFormat::default();
-        assert_eq!(default, NumberFormat::Decimal);
-    }
-    
+
     #[test]
     fn test_param_format_selector() {
         let pos_selector = ParamFormatSelector::Position(0);
         let name_selector = ParamFormatSelector::Name("test".to_string());
-        
+
         // Test that different selectors are not equal
         assert_ne!(pos_selector, name_selector);
-        
+
         // Test that same position selectors are equal
         let pos_selector2 = ParamFormatSelector::Position(0);
         assert_eq!(pos_selector, pos_selector2);
-        
+
         // Test that same name selectors are equal
         let name_selector2 = ParamFormatSelector::Name("test".to_string());
         assert_eq!(name_selector, name_selector2);
     }
-    
-    #[test]
-    fn test_formatter_options_default() {
-        let default = FormatterOptions::default();
-        
-        assert_eq!(default.indent, 4);
-        assert_eq!(default.use_tabs, false);
-        assert_eq!(default.newline_before, false);
-        assert_eq!(default.newline_after, false);
-        assert_eq!(default.compact, false);
-        assert_eq!(default.force_quotes_for_vars, false);
-        assert_eq!(default.number_format, NumberFormat::Decimal);
-        assert_eq!(default.newline_before_param, false);
-        assert_eq!(default.newline_after_param, false);
-    }
-    
+
     #[test]
     fn test_writer_config_default() {
         let default = WriterConfig::default();
-        
+
         // Test default global options
         assert_eq!(default.global_options.indent, 4);
         assert_eq!(default.global_options.compact, false);
-        
+
         // Test default command options
         assert!(default.command_options.is_empty());
-        
+
         // Test default command threshold
         assert_eq!(default.command_threshold, 1);
     }
-    
+
     #[test]
     fn test_writer_config_with_custom_command_options() {
         let mut command_options = HashMap::new();
@@ -156,24 +125,27 @@ mod tests {
             ..Default::default()
         };
         command_options.insert("custom_command".to_string(), custom_options.clone());
-        
+
         let config = WriterConfig {
             command_options,
             ..Default::default()
         };
-        
+
         // Test that custom command options are stored correctly
         assert_eq!(config.command_options.len(), 1);
-        assert_eq!(config.command_options.get("custom_command"), Some(&custom_options));
+        assert_eq!(
+            config.command_options.get("custom_command"),
+            Some(&custom_options)
+        );
     }
-    
+
     #[test]
     fn test_writer_config_with_custom_threshold() {
         let config = WriterConfig {
             command_threshold: 2,
             ..Default::default()
         };
-        
+
         assert_eq!(config.command_threshold, 2);
     }
 }

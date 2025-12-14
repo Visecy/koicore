@@ -86,6 +86,17 @@ target_link_libraries(
   koicore_ffi
 )
 
+# Test writer
+add_executable(
+  test_writer
+  test_writer.cpp
+)
+target_link_libraries(
+  test_writer
+  GTest::gtest_main
+  koicore_ffi
+)
+
 include(GoogleTest)
 gtest_discover_tests(test_parser)
 gtest_discover_tests(test_command)
@@ -93,3 +104,4 @@ gtest_discover_tests(test_composite_list)
 gtest_discover_tests(test_composite_dict)
 gtest_discover_tests(test_parser_error)
 gtest_discover_tests(test_input_source)
+gtest_discover_tests(test_writer)

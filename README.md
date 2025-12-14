@@ -31,7 +31,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-koicore = "0.1.3"
+koicore = "0.2.0"
 ```
 
 ## Building from Source
@@ -80,6 +80,7 @@ while let Some(command) = parser.next_command()? {
 Ok(())
 # }
 ```
+
 
 ## KoiLang Syntax
 
@@ -214,6 +215,34 @@ let input = FileInputSource::new("temp_script.ktxt")?;
 # }
 ```
 
+### Text Generation (Writer)
+Differs from parsing, `koicore` also provides a flexible writer module to generate KoiLang code programmatically:
+
+```rust
+use koicore::writer::{Writer, WriterConfig};
+use koicore::command::{Command, Parameter};
+
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+// Configure the writer
+let config = WriterConfig::default();
+let mut buffer = Vec::new();
+let mut writer = Writer::new(&mut buffer, config);
+
+// Create a command
+let cmd = Command::new("character", vec![
+    Parameter::from("Alice"),
+    Parameter::from("Hello, world!")
+]);
+
+// Write the command
+writer.write_command(&cmd)?;
+
+// Output: #character Alice "Hello, world!"
+println!("{}", String::from_utf8(buffer)?);
+# Ok(())
+# }
+```
+
 ## Advanced Features
 
 ### Philosophy: Data vs Instructions
@@ -343,7 +372,7 @@ The relationship between koicore and Python Kola represents an evolution of the 
 
 1. **Kola** is the complete first-generation implementation providing parser + writer + high-level abstractions. However, it relies on legacy flex and CPython APIs, making FFI integration challenging.
 
-2. **koicore** is the next-generation KoiLang kernel, delivering higher performance and cross-language language fundamentals (parser + writer, with writer implementation pending). New KoiLang Python bindings will be built on top of koicore.
+2. **koicore** is the next-generation KoiLang kernel, delivering higher performance and cross-language language fundamentals (parser + writer). New KoiLang Python bindings will be built on top of koicore.
 
 3. **Future Evolution**: Kola will gradually adopt koicore as its underlying implementation and will be progressively replaced by the new bindings.
 

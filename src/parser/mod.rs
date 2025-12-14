@@ -25,17 +25,17 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
-pub mod error;
-pub mod traceback;
-pub mod input;
-pub mod decode_buf_reader;
 pub mod command_parser;
+pub mod decode_buf_reader;
+pub mod error;
+pub mod input;
+pub mod traceback;
 
-use nom::Offset;
 use super::command::Command;
+pub use error::{ErrorInfo, ParseError, ParseResult};
+pub use input::{FileInputSource, StringInputSource, TextInputSource};
+use nom::Offset;
 pub use traceback::TracebackEntry;
-pub use error::{ ParseError, ParseResult, ErrorInfo };
-pub use input::{ TextInputSource, FileInputSource, StringInputSource };
 
 use input::Input;
 use traceback::NomErrorNode;
@@ -46,7 +46,7 @@ use traceback::NomErrorNode;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParserConfig {
     /// The command threshold (number of # required for commands)
-    /// 
+    ///
     /// Lines with fewer # characters than this threshold are treated as text.
     /// Lines with exactly this many # characters are treated as commands.
     /// Lines with more # characters are treated as annotations.
@@ -97,7 +97,7 @@ impl ParserConfig {
             convert_number_command,
         }
     }
-    
+
     /// Set the command threshold for this configuration
     ///
     /// # Arguments
@@ -211,7 +211,11 @@ impl<T: TextInputSource> Parser<T> {
                     return Ok(None);
                 }
                 Err(e) => {
-                    return Err(ParseError::io(e).with_source(&self.input, self.input.line_number, "".to_owned()));
+                    return Err(ParseError::io(e).with_source(
+                        &self.input,
+                        self.input.line_number,
+                        "".to_owned(),
+                    ));
                 }
             };
             let trimmed = line_text.trim();
@@ -221,10 +225,7 @@ impl<T: TextInputSource> Parser<T> {
             }
 
             // Count leading # characters
-            let hash_count = trimmed
-                .chars()
-                .take_while(|&c| c == '#')
-                .count();
+            let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
 
             if hash_count < self.config.command_threshold {
                 break Ok(Some(Command::new_text(trimmed)));
@@ -237,7 +238,8 @@ impl<T: TextInputSource> Parser<T> {
                 // hash_count == self.config.command_threshold
                 let column = line_text.offset(trimmed) + hash_count;
                 let command_str: String = trimmed.chars().skip(hash_count).collect();
-                break self.parse_command_line(command_str, lineno, column)
+                break self
+                    .parse_command_line(command_str, lineno, column)
                     .map_err(|e| e.with_source(&self.input, lineno, line_text));
             }
         }
@@ -260,53 +262,45 @@ impl<T: TextInputSource> Parser<T> {
         column: usize,
     ) -> ParseResult<Option<Command>> {
         if command_text.is_empty() {
-            return Err(
-                ParseError::syntax_with_context(
-                    "Empty command line".to_string(),
-                    lineno,
-                    column,
-                    command_text
-                )
-            );
+            return Err(ParseError::syntax_with_context(
+                "Empty command line".to_string(),
+                lineno,
+                column,
+                command_text,
+            ));
         }
 
-        let result = command_parser::parse_command_line::<NomErrorNode<&str>>(
-            &command_text
-        );
+        let result = command_parser::parse_command_line::<NomErrorNode<&str>>(&command_text);
 
         match result {
             Ok(("", command)) => {
                 let num_name = command.name().parse();
                 match num_name {
-                    Result::Err(_) => {
-                        Ok(Some(command))
-                    },
-                    Result::Ok(num) =>{
+                    Result::Err(_) => Ok(Some(command)),
+                    Result::Ok(num) => {
                         if !self.config.convert_number_command {
                             Ok(Some(command))
                         } else {
-                            Ok(Some(Command::new_number(
-                                num,
-                                command.params
-                            )))
+                            Ok(Some(Command::new_number(num, command.params)))
                         }
                     }
                 }
             }
-            Ok((remaining, _)) => {
-                Err(ParseError::unexpected_input(remaining.to_string(), lineno, column, command_text))
-            }
+            Ok((remaining, _)) => Err(ParseError::unexpected_input(
+                remaining.to_string(),
+                lineno,
+                column,
+                command_text,
+            )),
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                 // Create a simple nom error for compatibility
-                Err(
-                    ParseError::from_nom_error(
-                        "Command parsing error".to_string(),
-                        command_text.as_str(),
-                        lineno,
-                        column,
-                        e
-                    )
-                )
+                Err(ParseError::from_nom_error(
+                    "Command parsing error".to_string(),
+                    command_text.as_str(),
+                    lineno,
+                    column,
+                    e,
+                ))
             }
             Err(nom::Err::Incomplete(_)) => {
                 Err(ParseError::unexpected_eof(command_text, lineno, column))
@@ -356,12 +350,14 @@ impl<T: TextInputSource> Parser<T> {
     ///         },
     ///     }
     /// })?;
-    /// 
+    ///
     /// assert!(reached_eof, "Should have reached end of file");
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn process_with<F, E>(&mut self, mut handler: F) -> Result<bool, E>
-        where F: FnMut(Command) -> Result<bool, E>, E: From<Box<ParseError>>
+    where
+        F: FnMut(Command) -> Result<bool, E>,
+        E: From<Box<ParseError>>,
     {
         loop {
             match self.next_command() {
@@ -370,13 +366,13 @@ impl<T: TextInputSource> Parser<T> {
                     if !should_continue {
                         return Ok(false); // Stopped early by handler
                     }
-                },
+                }
                 Ok(None) => {
                     return Ok(true); // Reached EOF
-                }, // End of input
+                } // End of input
                 Err(e) => {
                     return Err(e.into());
-                }, // Convert ParseError to E
+                } // Convert ParseError to E
             }
         }
     }
@@ -399,5 +395,83 @@ impl<T: TextInputSource> AsRef<T> for Parser<T> {
 impl<T: TextInputSource> AsMut<T> for Parser<T> {
     fn as_mut(&mut self) -> &mut T {
         &mut self.input.source
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::parser::error::ParseError;
+
+    #[test]
+    fn test_parser_config() {
+        let config = ParserConfig::default();
+        assert_eq!(config.command_threshold, 1);
+        assert!(!config.skip_annotations);
+        assert!(config.convert_number_command);
+
+        let config = ParserConfig::new(2, true, false);
+        assert_eq!(config.command_threshold, 2);
+        assert!(config.skip_annotations);
+        assert!(!config.convert_number_command);
+
+        let config = ParserConfig::default()
+            .with_command_threshold(3)
+            .with_skip_annotations(true)
+            .with_convert_number_command(false);
+        assert_eq!(config.command_threshold, 3);
+        assert!(config.skip_annotations);
+        assert!(!config.convert_number_command);
+    }
+
+    #[test]
+    fn test_parser_process_with() {
+        let input = StringInputSource::new("#cmd1\n#cmd2");
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+
+        let mut commands = Vec::new();
+        // Explicitly specify the Error type for the result
+        let result: Result<bool, Box<ParseError>> = parser.process_with(|cmd| {
+            commands.push(cmd.name().to_string());
+            Ok(true)
+        });
+
+        assert!(result.is_ok());
+        assert!(result.unwrap()); // EOF reached
+        assert_eq!(commands, vec!["cmd1", "cmd2"]);
+    }
+
+    #[test]
+    fn test_parser_process_with_early_stop() {
+        let input = StringInputSource::new("#cmd1\n#cmd2");
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+
+        let mut commands = Vec::new();
+        let result: Result<bool, Box<ParseError>> = parser.process_with(|cmd| {
+            commands.push(cmd.name().to_string());
+            Ok(false) // Stop after first command
+        });
+
+        assert!(result.is_ok());
+        assert!(!result.unwrap()); // Stopped early
+        assert_eq!(commands, vec!["cmd1"]);
+
+        // Next command should be available
+        let next = parser.next_command().unwrap();
+        assert!(next.is_some());
+        assert_eq!(next.unwrap().name(), "cmd2");
+    }
+
+    #[test]
+    fn test_parser_current_line() {
+        let input = StringInputSource::new("#cmd1\n#cmd2");
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+
+        assert_eq!(parser.current_line(), 1);
+        parser.next_command().unwrap();
+        assert_eq!(parser.current_line(), 2);
     }
 }

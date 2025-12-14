@@ -372,7 +372,7 @@ dependencies = [
 
 [[package]]
 name = "koicore"
-version = "0.1.3"
+version = "0.2.0"
 dependencies = [
  "criterion",
  "encoding_rs",
@@ -381,7 +381,7 @@ dependencies = [
 
 [[package]]
 name = "koicore_ffi"
-version = "0.1.3"
+version = "0.2.0"
 dependencies = [
  "cbindgen",
  "encoding_rs",

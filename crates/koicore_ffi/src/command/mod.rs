@@ -31,10 +31,10 @@
 
 #[allow(clippy::module_inception)]
 mod command;
-mod param;
-mod list;
 mod dict;
+mod list;
+mod param;
 
 pub use command::KoiCommand;
-pub use list::KoiCompositeList;
 pub use dict::KoiCompositeDict;
+pub use list::KoiCompositeList;

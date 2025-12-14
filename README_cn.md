@@ -31,7 +31,7 @@ KoiLang 的核心理念是分离数据和指令。KoiLang 文件包含数据（�
 
 ```toml
 [dependencies]
-koicore = "0.1.3"
+koicore = "0.2.0"
 ```
 
 ## 从源码构建
@@ -80,6 +80,7 @@ while let Some(command) = parser.next_command()? {
 # Ok(())
 # }
 ```
+
 
 ## KoiLang 语法
 
@@ -210,6 +211,34 @@ let input = FileInputSource::new("script.ktxt")?;
 # }
 ```
 
+### 文本生成 (Writer)
+除了解析，`koicore` 还提供了灵活的写入器模块，用于以编程方式生成 KoiLang 代码：
+
+```rust
+use koicore::writer::{Writer, WriterConfig};
+use koicore::command::{Command, Parameter};
+
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+// 配置写入器
+let config = WriterConfig::default();
+let mut buffer = Vec::new();
+let mut writer = Writer::new(&mut buffer, config);
+
+// 创建命令
+let cmd = Command::new("character", vec![
+    Parameter::from("Alice"),
+    Parameter::from("Hello, world!")
+]);
+
+// 写入命令
+writer.write_command(&cmd)?;
+
+// 输出: #character Alice "Hello, world!"
+println!("{}", String::from_utf8(buffer)?);
+# Ok(())
+# }
+```
+
 ## 高级特性
 
 ### 理念：数据与指令的分离
@@ -328,7 +357,7 @@ koicore 与 Python Kola 之间的关系代表了 KoiLang 生态系统的演进�
 
 1. **Kola** 是完整的第一代实现，提供解析器 + 写入器 + 上层封装。然而，它依赖于老旧的 flex 和 CPython API，使得 FFI 集成具有挑战性。
 
-2. **koicore** 是新一代 KoiLang 内核，提供更高性能和跨语言的语言基础功能（解析器 + 写入器，其中写入器待实现）。新的 KoiLang Python 绑定将构建在 koicore 之上。
+2. **koicore** 是新一代 KoiLang 内核，提供更高性能和跨语言的语言基础功能（解析器 + 写入器）。新的 KoiLang Python 绑定将构建在 koicore 之上。
 
 3. **未来演进**：Kola 将逐步采用 koicore 作为底层实现，并将被新的绑定逐步取代。
 
