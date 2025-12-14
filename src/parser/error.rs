@@ -354,11 +354,10 @@ impl fmt::Display for ParseError {
             // Show arrow pointing to error location
             // The column range (start, end) is byte-based, but we need character positions for display
             // Convert byte indices to character indices
-            let mut char_idx = 0;
             let mut char_start = 0;
             let mut char_end = 0;
 
-            for (i, _) in source.text.char_indices() {
+            for (char_idx, (i, _)) in source.text.char_indices().enumerate() {
                 if i >= start.saturating_sub(1) && char_start == 0 {
                     char_start = char_idx;
                 }
@@ -366,7 +365,6 @@ impl fmt::Display for ParseError {
                     char_end = char_idx;
                     break;
                 }
-                char_idx += 1;
             }
 
             // If we didn't find the end, use the total character count
