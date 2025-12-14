@@ -1335,6 +1335,7 @@ int32_t KoiCommand_SetStringParameter(struct KoiCommand *command,
  * - null if input is null
  *
  * # Safety
+ *
  * The input pointer must be a valid KoiInputSource created with one of the
  * KoiInputSource_From* functions. After calling this function, the input pointer
  * becomes invalid and must not be used or freed.
@@ -1664,35 +1665,84 @@ void KoiInputSource_Del(struct KoiInputSource *input);
 void KoiParserConfig_Init(struct KoiParserConfig *config);
 
 /**
- * Create a new Writer with custom output VTable
+ * Create a new Writer with custom output VTable.
+ *
+ * # Safety
+ *
+ * * `vtable` must be a valid pointer to a `KoiWriterOutputVTable`.
+ * * `config` must be a valid pointer to a `KoiWriterConfig`.
+ * * The returned pointer must be freed using `KoiWriter_Del`.
  */
 struct KoiWriter *KoiWriter_NewFromVTable(const struct KoiWriterOutputVTable *vtable,
                                           void *user_data,
                                           const struct KoiWriterConfig *config);
 
 /**
- * Create a new Writer that writes to a file
+ * Create a new Writer that writes to a file.
+ *
+ * # Safety
+ *
+ * * `path` must be a valid null-terminated C string.
+ * * `config` must be a valid pointer to a `KoiWriterConfig`.
+ * * The returned pointer must be freed using `KoiWriter_Del`.
  */
 struct KoiWriter *KoiWriter_NewFromFile(const char *path, const struct KoiWriterConfig *config);
 
 /**
- * Create a new Writer that writes to a string output
+ * Create a new Writer that writes to a string output.
+ *
+ * # Safety
+ *
+ * * `output` must be a valid pointer to a `KoiStringOutput`.
+ * * `config` must be a valid pointer to a `KoiWriterConfig`.
+ * * The returned pointer must be freed using `KoiWriter_Del`.
  */
 struct KoiWriter *KoiWriter_NewFromStringOutput(struct KoiStringOutput *output,
                                                 const struct KoiWriterConfig *config);
 
 /**
- * Delete Writer
+ * Delete Writer.
+ *
+ * Frees the memory allocated for the writer.
+ *
+ * # Safety
+ *
+ * * `writer` must be a valid pointer returned by one of the `KoiWriter_New*` functions.
+ * * After calling this function, `writer` is invalid and must not be used.
  */
 void KoiWriter_Del(struct KoiWriter *writer);
 
 /**
- * Write a command
+ * Write a command.
+ *
+ * # Safety
+ *
+ * * `writer` must be a valid pointer to a `KoiWriter`.
+ * * `command` must be a valid pointer to a `KoiCommand`.
+ *
+ * # Returns
+ *
+ * * 0 on success
+ * * -1 if arguments are null
+ * * -2 if writing fails
  */
 int32_t KoiWriter_WriteCommand(struct KoiWriter *writer, const struct KoiCommand *command);
 
 /**
- * Write a command with custom options
+ * Write a command with custom options.
+ *
+ * # Safety
+ *
+ * * `writer` must be a valid pointer to a `KoiWriter`.
+ * * `command` must be a valid pointer to a `KoiCommand`.
+ * * `options` can be null (uses defaults).
+ * * `param_options` can be null (uses defaults).
+ *
+ * # Returns
+ *
+ * * 0 on success
+ * * -1 if writer or command are null
+ * * -2 if writing fails
  */
 int32_t KoiWriter_WriteCommandWithOptions(struct KoiWriter *writer,
                                           const struct KoiCommand *command,
@@ -1700,42 +1750,108 @@ int32_t KoiWriter_WriteCommandWithOptions(struct KoiWriter *writer,
                                           const struct KoiParamOption *param_options);
 
 /**
- * Increase indentation
+ * Increase indentation.
+ *
+ * # Safety
+ *
+ * * `writer` must be a valid pointer to a `KoiWriter`.
  */
 void KoiWriter_IncIndent(struct KoiWriter *writer);
 
 /**
- * Decrease indentation
+ * Decrease indentation.
+ *
+ * # Safety
+ *
+ * * `writer` must be a valid pointer to a `KoiWriter`.
  */
 void KoiWriter_DecIndent(struct KoiWriter *writer);
 
 /**
- * Get current indentation
+ * Get current indentation.
+ *
+ * # Safety
+ *
+ * * `writer` must be a valid pointer to a `KoiWriter`.
  */
 uintptr_t KoiWriter_GetIndent(const struct KoiWriter *writer);
 
 /**
- * Write a newline
+ * Write a newline.
+ *
+ * # Safety
+ *
+ * * `writer` must be a valid pointer to a `KoiWriter`.
+ *
+ * # Returns
+ *
+ * * 0 on success
+ * * -1 if writer is null
+ * * -2 if writing fails
  */
 int32_t KoiWriter_Newline(struct KoiWriter *writer);
 
 /**
  * Initialize KoiFormatterOptions with default values
+ *
+ * # Safety
+ *
+ * The pointer must be valid and writable.
  */
 void KoiFormatterOptions_Init(struct KoiFormatterOptions *options);
 
 /**
  * Initialize KoiWriterConfig with default values
+ *
+ * # Safety
+ *
+ * The pointer must be valid and writable.
  */
 void KoiWriterConfig_Init(struct KoiWriterConfig *config);
 
+/**
+ * Create a new String Output.
+ *
+ * The returned object must be freed using `KoiStringOutput_Del`.
+ *
+ * # Returns
+ *
+ * A valid pointer to a `KoiStringOutput`.
+ */
 struct KoiStringOutput *KoiStringOutput_New(void);
 
+/**
+ * Delete String Output.
+ *
+ * Frees the memory allocated for the string output.
+ *
+ * # Safety
+ *
+ * * `output` must be a valid pointer returned by `KoiStringOutput_New`.
+ * * After calling this function, `output` is invalid and must not be used.
+ */
 void KoiStringOutput_Del(struct KoiStringOutput *output);
 
 /**
- * Get content of the string buffer
- * Returns length of string. Copies content to buffer if provided.
+ * Get content of the string buffer.
+ *
+ * # Arguments
+ *
+ * * `output` - Pointer to the String Output object
+ * * `buffer` - Pointer to destination buffer (can be NULL to query size)
+ * * `buffer_len` - Size of the destination buffer
+ *
+ * # Returns
+ *
+ * The length of the string content PLUS null terminator.
+ * If `buffer` is NULL or `buffer_len` is too small, returns required size.
+ * If successful, copies content to `buffer` (null-terminated) and returns length.
+ * Returns 0 if `output` is NULL.
+ *
+ * # Safety
+ *
+ * * `output` must be a valid pointer returned by `KoiStringOutput_New`.
+ * * `buffer` must be a valid pointer to a writable buffer of at least `buffer_len` bytes.
  */
 uintptr_t KoiStringOutput_GetString(struct KoiStringOutput *output,
                                     char *buffer,

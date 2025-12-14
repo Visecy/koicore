@@ -90,6 +90,10 @@ impl From<FormatterOptions> for KoiFormatterOptions {
 }
 
 /// Initialize KoiFormatterOptions with default values
+/// 
+/// # Safety
+/// 
+/// The pointer must be valid and writable.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiFormatterOptions_Init(options: *mut KoiFormatterOptions) {
     let options = unsafe { options.as_mut() };
@@ -175,6 +179,10 @@ impl From<&KoiWriterConfig> for WriterConfig {
 }
 
 /// Initialize KoiWriterConfig with default values
+/// 
+/// # Safety
+/// 
+/// The pointer must be valid and writable.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriterConfig_Init(config: *mut KoiWriterConfig) {
     let config = unsafe { config.as_mut() };

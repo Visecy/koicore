@@ -15,7 +15,26 @@ use std::io::Write;
 pub struct Generators;
 
 impl Generators {
-    /// Write a command with parameter-specific formatting options
+    /// Write a command with parameter-specific formatting options.
+    ///
+    /// This function handles the core logic of writing a command to the output, including:
+    /// - Handling special command types (`@text`, `@annotation`, `@number`)
+    /// - Applying global and command-specific configuration
+    /// - Formatting parameters according to their specific options
+    /// - Managing indentation and newlines
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - The output writer implementing `Write` trait
+    /// * `command` - The command to write
+    /// * `config` - The overall writer configuration
+    /// * `options` - The effective formatting options for this command
+    /// * `param_options` - Optional map of parameter-specific formatting options
+    /// * `current_indent` - The current indentation level (number of steps)
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` on success, or an `std::io::Error` if writing fails.
     pub fn write_command_with_param_options<T: Write>(
         writer: &mut T,
         command: &Command,
@@ -172,7 +191,9 @@ impl Generators {
         Ok(())
     }
 
-    /// Get parameter name if it's a composite parameter
+    /// Get the parameter name if it's a composite parameter.
+    ///
+    /// Returns `Some(name)` if the parameter is a `Composite` types, `None` otherwise.
     pub fn get_param_name(param: &Parameter) -> Option<String> {
         match param {
             Parameter::Composite(name, _) => Some(name.clone()),
@@ -180,7 +201,19 @@ impl Generators {
         }
     }
 
-    /// Get specific formatting options for a parameter
+    /// Get specific formatting options for a parameter based on its position or name.
+    ///
+    /// This function resolves the formatting options for a specific parameter by checking:
+    /// 1. Name-based options (if the parameter has a name)
+    /// 2. Position-based options
+    /// 3. Default options (fallback)
+    ///
+    /// # Arguments
+    ///
+    /// * `position` - The 0-based index of the parameter
+    /// * `name` - The optional name of the parameter (for composite parameters)
+    /// * `default_options` - The default options to use as a base
+    /// * `param_options` - The map of parameter-specific options
     pub fn get_param_specific_options(
         position: usize,
         name: Option<String>,
@@ -205,7 +238,15 @@ impl Generators {
         default_options.clone()
     }
 
-    /// Merge two formatting options, giving precedence to the second one
+    /// Merge two formatting options, giving precedence to the override options.
+    ///
+    /// If `override_opt.should_override` is true, the `base` options are completely ignored.
+    /// Otherwise, non-default values in `override_opt` will replace corresponding values in `base`.
+    ///
+    /// # Arguments
+    ///
+    /// * `base` - The base formatting options
+    /// * `override_opt` - The options to merge on top of the base
     pub fn merge_options(
         base: &FormatterOptions,
         override_opt: &FormatterOptions,
@@ -248,7 +289,16 @@ impl Generators {
         merged
     }
 
-    /// Write indentation based on current level and options
+    /// Write indentation based on current level and options.
+    ///
+    /// Writes the appropriate indentation string (spaces or tabs) to the writer.
+    /// If `options.compact` is true, no indentation is written.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - The output writer
+    /// * `current_indent` - The current indentation level (number of steps)
+    /// * `options` - The formatting options defining indent style and size
     pub fn write_indent<T: Write>(
         writer: &mut T,
         current_indent: usize,
@@ -268,7 +318,18 @@ impl Generators {
         Ok(())
     }
 
-    /// Get the effective formatting options for a command
+    /// Get the effective formatting options for a command.
+    ///
+    /// Resolves the final formatting options by merging:
+    /// 1. Global options from config
+    /// 2. Command-specific options from config
+    /// 3. Ad-hoc options passed to the function
+    ///
+    /// # Arguments
+    ///
+    /// * `command_name` - The name of the command
+    /// * `options` - Optional ad-hoc options to apply
+    /// * `config` - The writer configuration
     pub fn get_effective_options(
         command_name: &str,
         options: Option<&FormatterOptions>,

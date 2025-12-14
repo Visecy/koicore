@@ -67,6 +67,7 @@ pub struct KoiParser {
 /// - null if input is null
 ///
 /// # Safety
+/// 
 /// The input pointer must be a valid KoiInputSource created with one of the
 /// KoiInputSource_From* functions. After calling this function, the input pointer
 /// becomes invalid and must not be used or freed.

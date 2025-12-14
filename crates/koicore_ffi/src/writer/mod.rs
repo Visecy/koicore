@@ -25,7 +25,13 @@ pub struct KoiWriter {
     inner: Writer<Box<dyn Write + Send>>,
 }
 
-/// Create a new Writer with custom output VTable
+/// Create a new Writer with custom output VTable.
+///
+/// # Safety
+///
+/// * `vtable` must be a valid pointer to a `KoiWriterOutputVTable`.
+/// * `config` must be a valid pointer to a `KoiWriterConfig`.
+/// * The returned pointer must be freed using `KoiWriter_Del`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_NewFromVTable(
     vtable: *const KoiWriterOutputVTable,
@@ -45,7 +51,13 @@ pub unsafe extern "C" fn KoiWriter_NewFromVTable(
     Box::into_raw(Box::new(KoiWriter { inner: writer }))
 }
 
-/// Create a new Writer that writes to a file
+/// Create a new Writer that writes to a file.
+///
+/// # Safety
+///
+/// * `path` must be a valid null-terminated C string.
+/// * `config` must be a valid pointer to a `KoiWriterConfig`.
+/// * The returned pointer must be freed using `KoiWriter_Del`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_NewFromFile(
     path: *const c_char,
@@ -73,7 +85,13 @@ pub unsafe extern "C" fn KoiWriter_NewFromFile(
     Box::into_raw(Box::new(KoiWriter { inner: writer }))
 }
 
-/// Create a new Writer that writes to a string output
+/// Create a new Writer that writes to a string output.
+///
+/// # Safety
+///
+/// * `output` must be a valid pointer to a `KoiStringOutput`.
+/// * `config` must be a valid pointer to a `KoiWriterConfig`.
+/// * The returned pointer must be freed using `KoiWriter_Del`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_NewFromStringOutput(
     output: *mut KoiStringOutput,
@@ -95,7 +113,14 @@ pub unsafe extern "C" fn KoiWriter_NewFromStringOutput(
     Box::into_raw(Box::new(KoiWriter { inner: writer }))
 }
 
-/// Delete Writer
+/// Delete Writer.
+///
+/// Frees the memory allocated for the writer.
+///
+/// # Safety
+///
+/// * `writer` must be a valid pointer returned by one of the `KoiWriter_New*` functions.
+/// * After calling this function, `writer` is invalid and must not be used.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_Del(writer: *mut KoiWriter) {
     if !writer.is_null() {
@@ -105,7 +130,18 @@ pub unsafe extern "C" fn KoiWriter_Del(writer: *mut KoiWriter) {
     }
 }
 
-/// Write a command
+/// Write a command.
+///
+/// # Safety
+///
+/// * `writer` must be a valid pointer to a `KoiWriter`.
+/// * `command` must be a valid pointer to a `KoiCommand`.
+///
+/// # Returns
+///
+/// * 0 on success
+/// * -1 if arguments are null
+/// * -2 if writing fails
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_WriteCommand(
     writer: *mut KoiWriter,
@@ -171,7 +207,20 @@ unsafe fn parse_param_options(
     }
 }
 
-/// Write a command with custom options
+/// Write a command with custom options.
+///
+/// # Safety
+///
+/// * `writer` must be a valid pointer to a `KoiWriter`.
+/// * `command` must be a valid pointer to a `KoiCommand`.
+/// * `options` can be null (uses defaults).
+/// * `param_options` can be null (uses defaults).
+///
+/// # Returns
+///
+/// * 0 on success
+/// * -1 if writer or command are null
+/// * -2 if writing fails
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_WriteCommandWithOptions(
     writer: *mut KoiWriter,
@@ -211,7 +260,11 @@ pub unsafe extern "C" fn KoiWriter_WriteCommandWithOptions(
     }
 }
 
-/// Increase indentation
+/// Increase indentation.
+///
+/// # Safety
+///
+/// * `writer` must be a valid pointer to a `KoiWriter`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_IncIndent(writer: *mut KoiWriter) {
     if !writer.is_null() {
@@ -220,7 +273,11 @@ pub unsafe extern "C" fn KoiWriter_IncIndent(writer: *mut KoiWriter) {
     }
 }
 
-/// Decrease indentation
+/// Decrease indentation.
+///
+/// # Safety
+///
+/// * `writer` must be a valid pointer to a `KoiWriter`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_DecIndent(writer: *mut KoiWriter) {
     if !writer.is_null() {
@@ -229,7 +286,11 @@ pub unsafe extern "C" fn KoiWriter_DecIndent(writer: *mut KoiWriter) {
     }
 }
 
-/// Get current indentation
+/// Get current indentation.
+///
+/// # Safety
+///
+/// * `writer` must be a valid pointer to a `KoiWriter`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_GetIndent(writer: *const KoiWriter) -> usize {
     if !writer.is_null() {
@@ -240,7 +301,17 @@ pub unsafe extern "C" fn KoiWriter_GetIndent(writer: *const KoiWriter) -> usize 
     }
 }
 
-/// Write a newline
+/// Write a newline.
+///
+/// # Safety
+///
+/// * `writer` must be a valid pointer to a `KoiWriter`.
+///
+/// # Returns
+///
+/// * 0 on success
+/// * -1 if writer is null
+/// * -2 if writing fails
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiWriter_Newline(writer: *mut KoiWriter) -> i32 {
     if !writer.is_null() {

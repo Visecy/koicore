@@ -1,7 +1,7 @@
 [package]
 name = "koicore_ffi"
 description = "FFI bindings for koicore"
-version = "0.1.3"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 authors = ["Ovizro <ovizro@visecy.org>"]
@@ -15,6 +15,6 @@ crate-type = ["cdylib", "staticlib"]
 cbindgen = "0.29"
 
 [dependencies]
-koicore = { path = "../..", version = "0.1.3" }
+koicore = { path = "../..", version = "0.2.0" }
 encoding_rs = "0.8"
 errno = "0.3.14"

@@ -73,6 +73,13 @@ pub struct KoiStringOutput {
     pub buffer: Arc<RwLock<Vec<u8>>>,
 }
 
+/// Create a new String Output.
+///
+/// The returned object must be freed using `KoiStringOutput_Del`.
+///
+/// # Returns
+///
+/// A valid pointer to a `KoiStringOutput`.
 #[unsafe(no_mangle)]
 pub extern "C" fn KoiStringOutput_New() -> *mut KoiStringOutput {
     let output = KoiStringOutput {
@@ -81,8 +88,16 @@ pub extern "C" fn KoiStringOutput_New() -> *mut KoiStringOutput {
     Box::into_raw(Box::new(output))
 }
 
+/// Delete String Output.
+///
+/// Frees the memory allocated for the string output.
+///
+/// # Safety
+///
+/// * `output` must be a valid pointer returned by `KoiStringOutput_New`.
+/// * After calling this function, `output` is invalid and must not be used.
 #[unsafe(no_mangle)]
-pub extern "C" fn KoiStringOutput_Del(output: *mut KoiStringOutput) {
+pub unsafe extern "C" fn KoiStringOutput_Del(output: *mut KoiStringOutput) {
     if !output.is_null() {
         unsafe {
             drop(Box::from_raw(output));
@@ -90,10 +105,27 @@ pub extern "C" fn KoiStringOutput_Del(output: *mut KoiStringOutput) {
     }
 }
 
-/// Get content of the string buffer
-/// Returns length of string. Copies content to buffer if provided.
+/// Get content of the string buffer.
+///
+/// # Arguments
+///
+/// * `output` - Pointer to the String Output object
+/// * `buffer` - Pointer to destination buffer (can be NULL to query size)
+/// * `buffer_len` - Size of the destination buffer
+///
+/// # Returns
+///
+/// The length of the string content PLUS null terminator.
+/// If `buffer` is NULL or `buffer_len` is too small, returns required size.
+/// If successful, copies content to `buffer` (null-terminated) and returns length.
+/// Returns 0 if `output` is NULL.
+/// 
+/// # Safety
+/// 
+/// * `output` must be a valid pointer returned by `KoiStringOutput_New`.
+/// * `buffer` must be a valid pointer to a writable buffer of at least `buffer_len` bytes.
 #[unsafe(no_mangle)]
-pub extern "C" fn KoiStringOutput_GetString(
+pub unsafe extern "C" fn KoiStringOutput_GetString(
     output: *mut KoiStringOutput,
     buffer: *mut c_char,
     buffer_len: usize,
