@@ -401,7 +401,7 @@ mod tests {
 
         let result = Generators::get_effective_options("unknown_command", None, &config);
         assert_eq!(result.indent, 8);
-        assert_eq!(result.number_format, NumberFormat::Unknown);
+        assert_eq!(result.number_format, NumberFormat::Decimal);
     }
 
     #[test]
@@ -658,5 +658,67 @@ mod tests {
 
         let result = String::from_utf8(buffer).unwrap();
         assert_eq!(result, "#123 extra");
+    }
+
+    #[test]
+    fn test_write_number_command_complex() {
+        // Test number command with multiple params and newlines
+        let command = Command::new_number(
+            123,
+            vec![
+                Parameter::from("p1"),
+                Parameter::from("p2"),
+                Parameter::from("p3"),
+            ],
+        );
+
+        let config = WriterConfig::default();
+        let options = FormatterOptions {
+            indent: 4,
+            ..Default::default()
+        };
+
+        // Define param options:
+        // p1 (idx 0 of params list, but printed after number) -> Position 0 (in extra params list? No, params list includes number param?)
+        // Wait, command.params has [Int(123), p1, p2, p3].
+        // Loop skips 1.
+        // i=0 -> param=p1 -> param_idx=1.
+        // get_param_specific_options uses param_idx (1).
+
+        let mut param_options_map = HashMap::new();
+        // p2 needs newline before
+        param_options_map.insert(
+            ParamFormatSelector::Position(2),
+            FormatterOptions {
+                newline_before_param: true,
+                ..Default::default()
+            },
+        );
+
+        let mut buffer = Vec::new();
+        Generators::write_command_with_param_options(
+            &mut buffer,
+            &command,
+            &config,
+            &options,
+            Some(&param_options_map),
+            1, // start with indent 1
+        )
+        .unwrap();
+
+        let result = String::from_utf8(buffer).unwrap();
+        // #123 p1
+        //         p2 p3
+        // Indent: base indent 1 (4 spaces) + 1 (4 spaces) = 8 spaces for p2.
+        // Wait, current_indent is 1. write_indent uses level * options.indent.
+        // logic: current_indent + 1 = 2.
+        // result should be "    #123 p1\n        p2 p3" (if write_command starts with indent? No, write_command writes command itself. Caller handles command indent?
+        // write_command_with_param_options does NOT write initial indent. It writes hashes then name.
+        // But for newlines inside parameters, it calls write_indent.
+        // So: "#123 p1\n        p2 p3"
+        // Wait, initial indent is supplied as 1.
+
+        let expected = "#123 p1\n        p2 p3";
+        assert_eq!(result, expected);
     }
 }

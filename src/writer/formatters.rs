@@ -68,7 +68,20 @@ impl Formatters {
         let needs_quotes = options.force_quotes_for_vars || !Self::is_valid_variable_name(s);
 
         if needs_quotes {
-            format!("\"{}\"", s)
+            let mut result = String::with_capacity(s.len() + 2);
+            result.push('"');
+            for c in s.chars() {
+                match c {
+                    '"' => result.push_str("\\\""),
+                    '\\' => result.push_str("\\\\"),
+                    '\n' => result.push_str("\\n"),
+                    '\r' => result.push_str("\\r"),
+                    '\t' => result.push_str("\\t"),
+                    c => result.push(c),
+                }
+            }
+            result.push('"');
+            result
         } else {
             s.to_string()
         }

@@ -18,6 +18,10 @@ ffi-test: build
 	cmake -B ./target/ffi-test ./crates/koicore_ffi/tests/cxx_api
 	cmake --build ./target/ffi-test
 
+.PHONY: coverage
+coverage:
+	cargo llvm-cov --lcov --output-path lcov.info
+
 .PHONY: publish
 publish:
 	cargo publish || echo "Failed to publish root crate, continuing..."

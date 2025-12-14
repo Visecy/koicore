@@ -3,13 +3,13 @@
 //! This module provides different input sources for the parser, including
 //! file-based, string-based, and streaming input.
 
+use super::decode_buf_reader::DecodeBufReader;
+use encoding_rs::Encoding;
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{ self, BufRead };
-use std::path::{ Path, PathBuf };
-use std::sync::{ Arc, Mutex };
-use encoding_rs::Encoding;
-use super::decode_buf_reader::DecodeBufReader;
+use std::io::{self, BufRead};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 /// Encoding error handling strategy
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,13 +56,12 @@ impl<T: TextInputSource + ?Sized> TextInputSource for Arc<Mutex<T>> {
     fn next_line(&mut self) -> io::Result<Option<String>> {
         self.as_ref()
             .lock()
-            .map_err(|e| { io::Error::other(format!("{}", e)) })?
+            .map_err(|e| io::Error::other(format!("{}", e)))?
             .next_line()
     }
 
     fn source_name(&self) -> String {
-        self
-            .as_ref()
+        self.as_ref()
             .lock()
             .map(|s| s.source_name())
             .unwrap_or("<string>".into())
@@ -102,7 +101,7 @@ impl FileInputSource {
     pub fn with_encoding<P: AsRef<Path>>(
         path: P,
         encoding: Option<&'static Encoding>,
-        strategy: EncodingErrorStrategy
+        strategy: EncodingErrorStrategy,
     ) -> io::Result<Self> {
         let filename = path.as_ref().to_path_buf();
         let file = File::open(path)?;
@@ -111,7 +110,11 @@ impl FileInputSource {
         } else {
             DecodeBufReader::with_encoding_and_strategy(file, encoding_rs::UTF_8, strategy)
         };
-        Ok(Self { reader, filename, encoding_strategy: strategy })
+        Ok(Self {
+            reader,
+            filename,
+            encoding_strategy: strategy,
+        })
     }
 }
 
@@ -125,12 +128,10 @@ impl TextInputSource for FileInputSource {
                 match self.encoding_strategy {
                     EncodingErrorStrategy::Strict if has_err => {
                         // In strict mode, we should return an error for encoding issues
-                        return Err(
-                            io::Error::new(
-                                io::ErrorKind::InvalidData,
-                                "Invalid encoding detected in strict mode"
-                            )
-                        );
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "Invalid encoding detected in strict mode",
+                        ));
                     }
                     EncodingErrorStrategy::Replace if has_err => {
                         line = line.replace("\u{FFFD}", "?");
@@ -164,7 +165,7 @@ impl StringInputSource {
     /// * `content` - The string content to parse
     pub fn new(content: &str) -> Self {
         let lines: Vec<String> = content
-            .lines()
+            .split_inclusive('\n')
             .map(|s| s.to_string())
             .collect();
         Self {
@@ -187,7 +188,7 @@ impl<R: BufRead> TextInputSource for BufReadWrapper<R> {
         let mut line = String::new();
         match self.0.read_line(&mut line) {
             Ok(0) => Ok(None), // EOF
-            Ok(_) => { Ok(Some(line.replace("\r\n", "\n"))) }
+            Ok(_) => Ok(Some(line.replace("\r\n", "\n"))),
             Err(e) => Err(e), // Propagate I/O errors
         }
     }
@@ -208,22 +209,22 @@ impl<T: TextInputSource> Input<T> {
 
     pub fn next_line(&mut self) -> io::Result<Option<(usize, String)>> {
         let mut line_cache = String::new();
+        let start_line_number = self.line_number;
         loop {
-            let line_number = self.line_number;
             match self.source.next_line() {
                 Ok(Some(line)) => {
                     self.line_number += 1;
                     line_cache.push_str(&line);
                     if !line.ends_with("\\\n") {
-                        break Ok(Some((line_number, line_cache)));
+                        break Ok(Some((start_line_number, line_cache)));
                     }
                 }
                 Ok(None) => {
                     if line_cache.is_empty() {
                         break Ok(None);
                     } else {
-                        self.line_number += 1;
-                        break Ok(Some((line_number, line_cache)));
+                        // For the last chunk, we still return the start line number
+                        break Ok(Some((start_line_number, line_cache)));
                     }
                 }
                 Err(e) => {
@@ -237,5 +238,124 @@ impl<T: TextInputSource> Input<T> {
 impl<T: TextInputSource> AsRef<T> for Input<T> {
     fn as_ref(&self) -> &T {
         &self.source
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+    use std::io::Write;
+
+    #[test]
+    fn test_buf_read_wrapper() {
+        let data = "line1\nline2\r\nline3";
+        let cursor = Cursor::new(data);
+        let mut source = BufReadWrapper(cursor);
+
+        assert_eq!(source.next_line().unwrap(), Some("line1\n".to_string()));
+        assert_eq!(source.next_line().unwrap(), Some("line2\n".to_string()));
+        assert_eq!(source.next_line().unwrap(), Some("line3".to_string()));
+        assert_eq!(source.next_line().unwrap(), None);
+    }
+
+    #[test]
+    fn test_input_line_continuation() {
+        // Test backslash + newline handling
+        let content = "line1\\\n continued\nline2";
+        let source = StringInputSource::new(content);
+        let mut input = Input::new(source);
+
+        // Expected: "line1\\\n continued" as one logical line
+        // Input::next_line returns (line_number, line_content)
+        // It accumulates lines ending with \\\n
+
+        // First call should return combined line
+        let (lineno, text) = input.next_line().unwrap().unwrap();
+        assert_eq!(lineno, 1);
+        assert_eq!(text, "line1\\\n continued\n");
+        assert_eq!(input.line_number, 3); // 1 + 1 (continued) + 1 (next) -> next will be 3?
+        // Let's trace:
+        // Start line_number = 1.
+        // next_line() calls source.next_line() -> "line1\\\n"
+        // self.line_number becomes 2.
+        // ends_with("\\\n") is true -> loop continues.
+        // next_line() -> " continued\n"
+        // self.line_number becomes 3.
+        // ends_with("\\\n") false -> break.
+        // Returns (original line_number 1, accumulated text).
+
+        let (lineno, text) = input.next_line().unwrap().unwrap();
+        assert_eq!(lineno, 3);
+        assert_eq!(text, "line2");
+
+        assert!(input.next_line().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_file_input_source_encoding_strategies() {
+        use std::env;
+        use std::fs;
+
+        // Create a temporary file with invalid UTF-8
+        let mut path = env::temp_dir();
+        path.push("koi_test_encoding.txt");
+
+        let invalid_utf8 = b"Hello \xFF World\n";
+        {
+            let mut file = File::create(&path).unwrap();
+            file.write_all(invalid_utf8).unwrap();
+        }
+
+        // Test Replace strategy (default)
+        {
+            let mut source = FileInputSource::new(&path).unwrap();
+            let line = source.next_line().unwrap().unwrap();
+            // \xFF is invalid in UTF-8, should be replaced with ? in our implementation of FileInputSource (Wait, usually it's \u{FFFD}, but code says: line = line.replace("\u{FFFD}", "?");)
+            // DecodeBufReader produces \u{FFFD}. FileInputSource logic replaces it with '?'.
+            assert_eq!(line, "Hello ? World\n");
+        }
+
+        // Test Ignore strategy
+        {
+            let mut source =
+                FileInputSource::with_encoding(&path, None, EncodingErrorStrategy::Ignore).unwrap();
+            let line = source.next_line().unwrap().unwrap();
+            assert_eq!(line, "Hello  World\n");
+        }
+
+        // Test Strict strategy
+        {
+            let mut source =
+                FileInputSource::with_encoding(&path, None, EncodingErrorStrategy::Strict).unwrap();
+            let result = source.next_line();
+            assert!(result.is_err());
+            assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+        }
+
+        // Cleanup
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_box_text_input_source() {
+        let source = StringInputSource::new("line1\nline2");
+        let mut boxed: Box<dyn TextInputSource> = Box::new(source);
+
+        assert_eq!(boxed.source_name(), "<string>");
+        assert_eq!(boxed.next_line().unwrap(), Some("line1\n".to_string()));
+        assert_eq!(boxed.next_line().unwrap(), Some("line2".to_string()));
+        assert_eq!(boxed.next_line().unwrap(), None);
+    }
+
+    #[test]
+    fn test_arc_mutex_text_input_source() {
+        let source = StringInputSource::new("line1\nline2");
+        let mut arc_source: Arc<Mutex<StringInputSource>> = Arc::new(Mutex::new(source));
+
+        assert_eq!(arc_source.source_name(), "<string>");
+        assert_eq!(arc_source.next_line().unwrap(), Some("line1\n".to_string()));
+        assert_eq!(arc_source.next_line().unwrap(), Some("line2".to_string()));
+        assert_eq!(arc_source.next_line().unwrap(), None);
     }
 }
