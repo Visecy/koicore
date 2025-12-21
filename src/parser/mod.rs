@@ -33,7 +33,7 @@ pub mod traceback;
 
 use super::command::Command;
 pub use error::{ErrorInfo, ParseError, ParseResult};
-pub use input::{FileInputSource, StringInputSource, TextInputSource};
+pub use input::{BufReadWrapper, FileInputSource, StringInputSource, TextInputSource};
 use nom::Offset;
 pub use traceback::TracebackEntry;
 

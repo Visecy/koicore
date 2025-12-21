@@ -4,12 +4,12 @@
 
 use std::fmt;
 
+use nom::Input;
+use nom::Offset;
 use nom::error::ContextError;
 use nom::error::ErrorKind;
 use nom::error::FromExternalError;
 use nom::error::ParseError;
-use nom::Input;
-use nom::Offset;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 /// Error context for `VerboseError`
@@ -50,10 +50,11 @@ impl<I: Input> ParseError<I> for NomErrorNode<I> {
                 other
             }
             _ => {
-                other.children.push(NomErrorNode::from_error_kind(input, kind));
+                other
+                    .children
+                    .push(NomErrorNode::from_error_kind(input, kind));
                 other
             }
-            
         }
     }
 
@@ -66,7 +67,7 @@ impl<I: Input> ParseError<I> for NomErrorNode<I> {
     }
 
     fn or(mut self, mut other: Self) -> Self {
-        match (self.kind, other.kind)  {
+        match (self.kind, other.kind) {
             (NomErrorKind::Nom(ErrorKind::Alt), NomErrorKind::Nom(ErrorKind::Alt)) => {
                 self.children.extend(other.children);
                 self
@@ -130,57 +131,49 @@ impl TracebackEntry {
         }
     }
 
-    pub(super) fn build_error_trace<I: core::ops::Deref<Target = str> + Input>(input: I, line: usize, column_offset: usize, error: &NomErrorNode<I>) -> Self {
-        let (line_offset, column, _) = Self::extract_position_info(&input, &error.input);
+    pub(super) fn build_error_trace<I: core::ops::Deref<Target = str> + Input>(
+        input: I,
+        line: usize,
+        column_offset: usize,
+        error: &NomErrorNode<I>,
+    ) -> Self {
+        let line_index = LineIndex::new(&input);
+        Self::build_error_trace_recursive(&input, &line_index, line, column_offset, error)
+    }
+
+    fn build_error_trace_recursive<I: core::ops::Deref<Target = str> + Input>(
+        input: &I,
+        line_index: &LineIndex,
+        line_base: usize,
+        column_offset: usize,
+        error: &NomErrorNode<I>,
+    ) -> Self {
+        let (rel_line, rel_column) = line_index.get_location(input, &error.input);
         let context = Self::format_error_kind(&error.kind);
 
-        let children = error.children.iter().map(|child| Self::build_error_trace(input.clone(), line, column_offset, child)).collect();
+        let children = error
+            .children
+            .iter()
+            .map(|child| {
+                Self::build_error_trace_recursive(
+                    input,
+                    line_index,
+                    line_base,
+                    column_offset,
+                    child,
+                )
+            })
+            .collect();
 
         TracebackEntry {
-            lineno : line + line_offset - 1,
-            column_range: (column + column_offset, column + error.input.len() + column_offset),
+            lineno: line_base + rel_line - 1,
+            column_range: (
+                rel_column + if rel_line == 1 { column_offset } else { 0 },
+                rel_column + error.input.len() + if rel_line == 1 { column_offset } else { 0 },
+            ),
             context,
             children,
         }
-    }
-    
-    /// Extract line, column, and line content from input substrings
-    #[inline]
-    fn extract_position_info<I: core::ops::Deref<Target = str>>(
-        input: &I,
-        substring: &I,
-    ) -> (usize, usize, String) {
-        let offset = input.offset(substring);
-
-        if input.is_empty() {
-            return (1, 1, String::new());
-        }
-
-        let prefix = &input.as_bytes()[..offset];
-
-        // Count the number of newlines in the first `offset` bytes of input
-        let line_number = prefix.iter().filter(|&&b| b == b'\n').count() + 1;
-
-        // Find the line that includes the subslice:
-        // Find the *last* newline before the substring starts
-        let line_begin = prefix
-            .iter()
-            .rev()
-            .position(|&b| b == b'\n')
-            .map(|pos| offset - pos)
-            .unwrap_or(0);
-
-        // Find the full line after that newline
-        let line = input[line_begin..]
-            .lines()
-            .next()
-            .unwrap_or(&input[line_begin..])
-            .trim_end();
-
-        // The (1-indexed) column number is the offset of our substring into that line
-        let column_number = line.offset(substring) + 1;
-
-        (line_number, column_number, line.to_string())
     }
 
     /// Format nom error kind into human-readable context
@@ -191,18 +184,20 @@ impl TracebackEntry {
             NomErrorKind::Char(c) => format!("nom.char<'{}'>", c),
             NomErrorKind::Nom(kind) => format!("nom.{:?}", kind),
         }
-}
-    pub(super) fn write_tree(&self, f: &mut fmt::Formatter<'_>, prefix: &str, is_last: bool) -> fmt::Result {
+    }
+
+    pub(super) fn write_tree(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        prefix: &str,
+        is_last: bool,
+    ) -> fmt::Result {
         let connector = if is_last { "└─ " } else { "├─ " };
         let (start, end) = self.column_range;
         writeln!(
             f,
             "{}{}{} ({}–{})",
-            prefix,
-            connector,
-            self.context,
-            start,
-            end
+            prefix, connector, self.context, start, end
         )?;
 
         let child_prefix = if is_last { "   " } else { "│  " };
@@ -220,6 +215,59 @@ impl TracebackEntry {
 impl fmt::Display for TracebackEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.write_tree(f, "", false)
+    }
+}
+
+/// Helper structure for efficient line number lookups
+pub(crate) struct LineIndex {
+    /// Start offsets of newlines
+    pub(crate) newlines: Vec<usize>,
+}
+
+impl LineIndex {
+    pub(crate) fn new(input: &str) -> Self {
+        let newlines = input
+            .bytes()
+            .enumerate()
+            .filter_map(|(i, b)| if b == b'\n' { Some(i) } else { None })
+            .collect();
+        Self { newlines }
+    }
+
+    /// Get valid (line_number, column_number) for a substring
+    /// line_number is 1-based, column_number is 1-based
+    pub(crate) fn get_location<I: core::ops::Deref<Target = str>>(
+        &self,
+        full_input: &I,
+        substring: &I,
+    ) -> (usize, usize) {
+        let offset = full_input.offset(substring);
+        self.get_location_at(offset)
+    }
+
+    /// Get valid (line_number, column_number) for a byte offset
+    /// line_number is 1-based, column_number is 1-based
+    pub(crate) fn get_location_at(&self, offset: usize) -> (usize, usize) {
+        if offset == 0 {
+            return (1, 1);
+        }
+
+        let line_number = match self.newlines.binary_search(&offset) {
+            Ok(idx) => idx + 1,
+            Err(idx) => idx + 1,
+        }
+        .max(1);
+
+        // Determine column
+        let line_start = if line_number == 1 {
+            0
+        } else {
+            self.newlines[line_number - 2] + 1
+        };
+
+        let column_number = offset - line_start + 1;
+
+        (line_number, column_number)
     }
 }
 
@@ -252,7 +300,7 @@ mod tests {
                 let traceback = TracebackEntry::build_error_trace(input, 1, 0, &e);
                 println!("Converted traceback: {:#?}", traceback);
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
 
         let input = "error e() 1";
@@ -265,7 +313,7 @@ mod tests {
                 let traceback = TracebackEntry::build_error_trace(input, 1, 0, &e);
                 println!("Converted traceback: {:#?}", traceback);
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
 
         let input = "error e(1, 2 3)";
@@ -278,7 +326,7 @@ mod tests {
                 let traceback = TracebackEntry::build_error_trace(input, 1, 0, &e);
                 println!("Converted traceback: {:#?}", traceback);
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }

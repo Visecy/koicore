@@ -31,7 +31,7 @@ KoiLang 的核心理念是分离数据和指令。KoiLang 文件包含数据（�
 
 ```toml
 [dependencies]
-koicore = "0.2.0"
+koicore = "0.2.1"
 ```
 
 ## 从源码构建

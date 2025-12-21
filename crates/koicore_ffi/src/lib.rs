@@ -52,3 +52,96 @@
 pub mod command;
 pub mod parser;
 pub mod writer;
+
+#[cfg(test)]
+mod tests {
+    use crate::command::command::*;
+    use crate::command::dict::*;
+    use crate::command::list::*;
+    use crate::command::single::*;
+    use koicore::command::{Command, CompositeValue, Parameter, Value};
+    use std::ffi::CString;
+
+    #[test]
+    fn test_ffi_composite_list() {
+        unsafe {
+            let cmd_name = CString::new("test_cmd").unwrap();
+            let cmd = KoiCommand_New(cmd_name.as_ptr());
+
+            let list_name = CString::new("my_list").unwrap();
+            let list = KoiCompositeList_New(list_name.as_ptr());
+
+            KoiCompositeList_AddIntValue(list, 42);
+            KoiCommand_AddCompositeList(cmd, list);
+
+            let command = &*(cmd as *mut Command);
+            assert_eq!(command.name, "test_cmd");
+            assert_eq!(command.params.len(), 1);
+
+            if let Parameter::Composite(name, CompositeValue::List(values)) = &command.params[0] {
+                assert_eq!(name, "my_list");
+                assert_eq!(values.len(), 1);
+                assert_eq!(values[0], Value::Int(42));
+            } else {
+                panic!("Expected composite list parameter");
+            }
+
+            KoiCommand_Del(cmd);
+        }
+    }
+
+    #[test]
+    fn test_ffi_composite_dict() {
+        unsafe {
+            let cmd_name = CString::new("test_cmd").unwrap();
+            let cmd = KoiCommand_New(cmd_name.as_ptr());
+
+            let dict_name = CString::new("my_dict").unwrap();
+            let dict = KoiCompositeDict_New(dict_name.as_ptr());
+
+            let key = CString::new("key").unwrap();
+            KoiCompositeDict_SetIntValue(dict, key.as_ptr(), 123);
+            KoiCommand_AddCompositeDict(cmd, dict);
+
+            let command = &*(cmd as *mut Command);
+            assert_eq!(command.params.len(), 1);
+
+            if let Parameter::Composite(name, CompositeValue::Dict(entries)) = &command.params[0] {
+                assert_eq!(name, "my_dict");
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].0, "key");
+                assert_eq!(entries[0].1, Value::Int(123));
+            } else {
+                panic!("Expected composite dict parameter");
+            }
+
+            KoiCommand_Del(cmd);
+        }
+    }
+
+    #[test]
+    fn test_ffi_composite_single() {
+        unsafe {
+            let cmd_name = CString::new("test_cmd").unwrap();
+            let cmd = KoiCommand_New(cmd_name.as_ptr());
+
+            let single_name = CString::new("my_single").unwrap();
+            let single = KoiCompositeSingle_New(single_name.as_ptr());
+
+            KoiCompositeSingle_SetIntValue(single, 114);
+            KoiCommand_AddCompositeSingle(cmd, single);
+
+            let command = &*(cmd as *mut Command);
+            assert_eq!(command.params.len(), 1);
+
+            if let Parameter::Composite(name, CompositeValue::Single(value)) = &command.params[0] {
+                assert_eq!(name, "my_single");
+                assert_eq!(*value, Value::Int(114));
+            } else {
+                panic!("Expected composite single parameter");
+            }
+
+            KoiCommand_Del(cmd);
+        }
+    }
+}

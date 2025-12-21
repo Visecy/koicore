@@ -30,11 +30,13 @@
 //! which are automatically freed when the parent is deleted.
 
 #[allow(clippy::module_inception)]
-mod command;
-mod dict;
-mod list;
-mod param;
+pub(crate) mod command;
+pub(crate) mod dict;
+pub(crate) mod list;
+pub(crate) mod param;
+pub(crate) mod single;
 
 pub use command::KoiCommand;
 pub use dict::KoiCompositeDict;
 pub use list::KoiCompositeList;
+pub use single::KoiCompositeSingle;

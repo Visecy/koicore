@@ -247,13 +247,17 @@ pub unsafe extern "C" fn KoiWriter_WriteCommandWithOptions(
         Some(unsafe { parse_param_options(param_options) })
     };
 
+    let param_options_ref_map =
+        param_options_map
+            .as_ref()
+            .map(|m| m.iter().map(|(k, v)| (k.clone(), v)).collect());
+
     // We need to pass reference to options
     let options_ref = options.as_ref();
-    let param_options_ref = param_options_map.as_ref();
 
     match writer
         .inner
-        .write_command_with_options(command, options_ref, param_options_ref)
+        .write_command_with_options(command, options_ref, param_options_ref_map.as_ref())
     {
         Ok(_) => 0,
         Err(_) => -2,

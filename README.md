@@ -31,7 +31,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-koicore = "0.2.0"
+koicore = "0.2.1"
 ```
 
 ## Building from Source

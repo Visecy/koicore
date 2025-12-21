@@ -19,7 +19,7 @@ use std::io;
 use crate::parser::NomErrorNode;
 use crate::parser::TextInputSource;
 use crate::parser::input::Input;
-use crate::parser::traceback::TracebackEntry;
+use crate::parser::traceback::{LineIndex, TracebackEntry};
 
 /// Result type for parsing operations
 pub type ParseResult<T> = Result<T, Box<ParseError>>;
@@ -160,11 +160,18 @@ impl ParseError {
         column_offset: usize,
         input: String,
     ) -> Box<Self> {
-        let column = input.len() - remaining.len() + 1 + column_offset;
+        let line_index = LineIndex::new(&input);
+        // Find the offset of remaining in input manually since they might be different allocations
+        let offset = input.len().saturating_sub(remaining.len());
+        let (rel_line, rel_column) = line_index.get_location_at(offset);
+
         Box::new(ParseError {
             traceback: Some(TracebackEntry::new(
-                line,
-                (column, column + remaining.len()),
+                line + rel_line - 1,
+                (
+                    rel_column + if rel_line == 1 { column_offset } else { 0 },
+                    rel_column + remaining.len() + if rel_line == 1 { column_offset } else { 0 },
+                ),
                 "".to_string(),
             )),
             error_info: ErrorInfo::UnexpectedInput { remaining },
@@ -342,14 +349,37 @@ impl fmt::Display for ParseError {
             write!(
                 f,
                 "\n  -->   {}:{}:{}",
-                source.filename, source.lineno, start
+                source.filename, traceback.lineno, start
             )?;
+
+            // Find the specific line content and its relative line number
+            let line_index = LineIndex::new(&source.text);
+            let mut current_line_content = "";
+            let rel_lineno = traceback.lineno.saturating_sub(source.lineno) + 1;
+
+            let mut start_offset = 0;
+            for (i, &newline_offset) in line_index.newlines.iter().enumerate() {
+                if i + 1 == rel_lineno {
+                    current_line_content = &source.text[start_offset..newline_offset];
+                    break;
+                }
+                start_offset = newline_offset + 1;
+            }
+
+            if current_line_content.is_empty() && rel_lineno > line_index.newlines.len() {
+                current_line_content = &source.text[start_offset..];
+            }
 
             // Display the code line with visual indicators
             write!(f, "\n    │")?;
 
             // Display line number and content
-            write!(f, "\n{: ^4}│    {}", source.lineno, &source.text)?;
+            write!(
+                f,
+                "\n{: ^4}│    {}",
+                traceback.lineno,
+                current_line_content.trim_end()
+            )?;
 
             // Show arrow pointing to error location
             // The column range (start, end) is byte-based, but we need character positions for display
@@ -357,7 +387,8 @@ impl fmt::Display for ParseError {
             let mut char_start = 0;
             let mut char_end = 0;
 
-            for (char_idx, (i, _)) in source.text.char_indices().enumerate() {
+            for (char_idx, (i, _)) in current_line_content.char_indices().enumerate() {
+                // Adjust start by -1 because start/end are 1-based columns
                 if i >= start.saturating_sub(1) && char_start == 0 {
                     char_start = char_idx;
                 }
@@ -369,7 +400,16 @@ impl fmt::Display for ParseError {
 
             // If we didn't find the end, use the total character count
             if char_end == 0 || char_end < char_start {
-                char_end = source.text.chars().count();
+                char_end = (char_start + (end as isize - start as isize).abs() as usize)
+                    .max(char_start + 1);
+            }
+            // Clamp char_end to line length if it's way out of bounds, but keep at least 1 caret
+            let line_char_count = current_line_content.chars().count();
+            if char_start >= line_char_count {
+                char_start = line_char_count;
+                char_end = line_char_count + 1;
+            } else {
+                char_end = char_end.min(line_char_count);
             }
 
             let arrow = " ".repeat(char_start + 4) + &"^".repeat((char_end - char_start).max(1));
