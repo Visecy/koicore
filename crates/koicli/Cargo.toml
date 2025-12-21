@@ -1,8 +1,10 @@
 [package]
 name = "koicli"
+description = "Command-line interface for KoiLang"
 version = "0.1.0"
 edition = "2024"
 authors = ["Ovizro <ovizro@visecy.org>"]
+publish = false
 
 [dependencies]
 koicore = { path = "../..", features = ["serde"] }

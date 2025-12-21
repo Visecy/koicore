@@ -225,12 +225,12 @@ impl Generators {
             if let Some(param_name) = name
                 && let Some(options) = options_map.get(&ParamFormatSelector::Name(param_name))
             {
-                return Self::merge_options(default_options, *options);
+                return Self::merge_options(default_options, options);
             }
 
             // Try to get options by position
             if let Some(options) = options_map.get(&ParamFormatSelector::Position(position)) {
-                return Self::merge_options(default_options, *options);
+                return Self::merge_options(default_options, options);
             }
         }
 
