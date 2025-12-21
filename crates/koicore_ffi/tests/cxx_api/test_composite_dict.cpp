@@ -9,7 +9,7 @@ using namespace koicore;
 // Test KoiCompositeDict functionality
 TEST(CompositeDictTest, TestCreateDict) {
     // Create a new empty dict
-    KoiCompositeDict* dict = KoiCompositeDict_New();
+    KoiCompositeDict* dict = KoiCompositeDict_New("test_dict");
     EXPECT_NE(dict, nullptr);
     
     // Check initial length
@@ -20,7 +20,7 @@ TEST(CompositeDictTest, TestCreateDict) {
 
 TEST(CompositeDictTest, TestSetValues) {
     // Create a new dict
-    KoiCompositeDict* dict = KoiCompositeDict_New();
+    KoiCompositeDict* dict = KoiCompositeDict_New("set_test");
     EXPECT_NE(dict, nullptr);
     
     // Set values
@@ -55,7 +55,7 @@ TEST(CompositeDictTest, TestSetValues) {
 
 TEST(CompositeDictTest, TestModifyValues) {
     // Create a new dict with initial values
-    KoiCompositeDict* dict = KoiCompositeDict_New();
+    KoiCompositeDict* dict = KoiCompositeDict_New("modify_test");
     EXPECT_NE(dict, nullptr);
     
     EXPECT_EQ(KoiCompositeDict_SetIntValue(dict, "int_key", 100), 0);
@@ -86,7 +86,7 @@ TEST(CompositeDictTest, TestModifyValues) {
 
 TEST(CompositeDictTest, TestRemoveEntries) {
     // Create a new dict with values
-    KoiCompositeDict* dict = KoiCompositeDict_New();
+    KoiCompositeDict* dict = KoiCompositeDict_New("remove_test");
     EXPECT_NE(dict, nullptr);
     
     EXPECT_EQ(KoiCompositeDict_SetIntValue(dict, "key1", 1), 0);
@@ -114,7 +114,7 @@ TEST(CompositeDictTest, TestRemoveEntries) {
 
 TEST(CompositeDictTest, TestClearDict) {
     // Create a new dict with values
-    KoiCompositeDict* dict = KoiCompositeDict_New();
+    KoiCompositeDict* dict = KoiCompositeDict_New("clear_test");
     EXPECT_NE(dict, nullptr);
     
     EXPECT_EQ(KoiCompositeDict_SetIntValue(dict, "key1", 1), 0);
@@ -135,7 +135,7 @@ TEST(CompositeDictTest, TestClearDict) {
 
 TEST(CompositeDictTest, TestDictIteration) {
     // Create a new dict with values
-    KoiCompositeDict* dict = KoiCompositeDict_New();
+    KoiCompositeDict* dict = KoiCompositeDict_New("iter_test");
     EXPECT_NE(dict, nullptr);
     
     EXPECT_EQ(KoiCompositeDict_SetIntValue(dict, "key1", 1), 0);
@@ -166,7 +166,7 @@ TEST(CompositeDictTest, TestDictIteration) {
 
 TEST(CompositeDictTest, TestKeyLength) {
     // Create a new dict
-    KoiCompositeDict* dict = KoiCompositeDict_New();
+    KoiCompositeDict* dict = KoiCompositeDict_New("key_len_test");
     EXPECT_NE(dict, nullptr);
     
     // Set a value with a long key
@@ -188,7 +188,7 @@ TEST(CompositeDictTest, TestKeyLength) {
 
 TEST(CompositeDictTest, TestStringValueLength) {
     // Create a new dict
-    KoiCompositeDict* dict = KoiCompositeDict_New();
+    KoiCompositeDict* dict = KoiCompositeDict_New("val_len_test");
     EXPECT_NE(dict, nullptr);
     
     // Set a string value
@@ -214,18 +214,25 @@ TEST(CompositeDictTest, TestDictInCommand) {
     EXPECT_NE(cmd, nullptr);
     
     // Create a dict
-    KoiCompositeDict* dict = KoiCompositeDict_New();
+    KoiCompositeDict* dict = KoiCompositeDict_New("my_dict");
     EXPECT_NE(dict, nullptr);
     
     // Add values to the dict
     EXPECT_EQ(KoiCompositeDict_SetIntValue(dict, "int_key", 42), 0);
     EXPECT_EQ(KoiCompositeDict_SetStringValue(dict, "string_key", "hello"), 0);
     
-    // Note: There's no direct API to add a dict to a command in the header
-    // This test demonstrates how to work with a dict that might be part of a command
+    // Add dict to command
+    EXPECT_EQ(KoiCommand_AddCompositeDict(cmd, dict), 0);
+    
+    // Check command parameter count
+    EXPECT_EQ(KoiCommand_GetParamCount(cmd), 1);
+    
+    // Get dict back from command
+    KoiCompositeDict* dict_back = KoiCommand_GetCompositeDict(cmd, 0);
+    EXPECT_NE(dict_back, nullptr);
+    EXPECT_EQ(KoiCompositeDict_GetLength(dict_back), 2);
     
     // Clean up
-    KoiCompositeDict_Del(dict);
     KoiCommand_Del(cmd);
 }
 

@@ -1,5 +1,11 @@
-use koicore::{command::{Command, CompositeValue, Parameter}, Value};
-use std::{ffi::{c_char, CStr}, ptr, slice};
+use koicore::{
+    Value,
+    command::{Command, CompositeValue, Parameter},
+};
+use std::{
+    ffi::{CStr, c_char},
+    ptr, slice,
+};
 
 use crate::command::param::KoiParamType;
 
@@ -51,20 +57,20 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeList(
     if command.is_null() {
         return ptr::null_mut();
     }
-    
+
     let command = unsafe { &*(command as *mut Command) };
     let params = command.params();
-    
+
     if index >= params.len() {
         return ptr::null_mut();
     }
-    
+
     match &params[index] {
         p @ &Parameter::Composite(_, CompositeValue::List(_)) => {
             // Cast the parameter reference to the opaque list type
             p as *const Parameter as *mut KoiCompositeList
         }
-        _ => ptr::null_mut()
+        _ => ptr::null_mut(),
     }
 }
 
@@ -89,7 +95,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetLength(list: *mut KoiCompositeList)
     if list.is_null() {
         return 0;
     }
-    
+
     let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => values.len(),
@@ -122,7 +128,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetValueType(
     if list.is_null() {
         return KoiParamType::Invalid as i32;
     }
-    
+
     let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
@@ -133,6 +139,7 @@ pub unsafe extern "C" fn KoiCompositeList_GetValueType(
                     Value::Int(_) => KoiParamType::BasicInt as i32,
                     Value::Float(_) => KoiParamType::BasicFloat as i32,
                     Value::String(_) => KoiParamType::BasicString as i32,
+                    Value::Bool(_) => KoiParamType::BasicBool as i32,
                 }
             }
         }
@@ -172,14 +179,14 @@ pub unsafe extern "C" fn KoiCompositeList_GetIntValue(
     if list.is_null() || out_value.is_null() {
         return -1;
     }
-    
+
     let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
                 return -2;
             }
-            
+
             match &values[index] {
                 Value::Int(value) => {
                     unsafe { *out_value = *value };
@@ -224,14 +231,14 @@ pub unsafe extern "C" fn KoiCompositeList_GetFloatValue(
     if list.is_null() || out_value.is_null() {
         return -1;
     }
-    
+
     let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
                 return -2;
             }
-            
+
             match &values[index] {
                 Value::Float(value) => {
                     unsafe { *out_value = *value };
@@ -276,31 +283,31 @@ pub unsafe extern "C" fn KoiCompositeList_GetStringValue(
     if list.is_null() || buffer.is_null() {
         return 0;
     }
-    
+
     let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
                 return 0;
             }
-            
+
             let value_str = match &values[index] {
                 Value::String(value) => value,
                 _ => return 0,
             };
-            
+
             let value_bytes = value_str.as_bytes();
             let value_len = value_bytes.len();
             let required_size = value_len + 1;
-            
+
             if buffer_size < required_size {
                 return required_size;
             }
-            
+
             let buffer_slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, buffer_size) };
             buffer_slice[..value_len].copy_from_slice(value_bytes);
             buffer_slice[value_len] = 0;
-            
+
             required_size
         }
         _ => 0,
@@ -332,14 +339,14 @@ pub unsafe extern "C" fn KoiCompositeList_GetStringValueLen(
     if list.is_null() {
         return 0;
     }
-    
+
     let param = unsafe { &*(list as *const Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
                 return 0;
             }
-            
+
             match &values[index] {
                 Value::String(value) => value.len() + 1,
                 _ => 0,
@@ -354,21 +361,70 @@ pub unsafe extern "C" fn KoiCompositeList_GetStringValueLen(
 /// This function creates a new empty composite list parameter that can be
 /// added to a command or used independently.
 ///
+/// # Arguments
+///
+/// * `name` - The name of the composite parameter (null-terminated C string)
+///
 /// # Returns
 ///
 /// Pointer to the newly created composite list parameter, or NULL on failure.
-/// The caller is responsible for freeing the list using KoiCompositeList_Del.
+/// The caller is responsible for freeing the list using KoiCompositeList_Del,
+/// unless it is passed to KoiCommand_AddCompositeList.
 ///
 /// # Safety
 ///
-/// The returned pointer must be freed using KoiCompositeList_Del when no longer needed.
+/// The returned pointer must be freed using KoiCompositeList_Del when no longer needed,
+/// unless ownership is transferred to a command.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCompositeList_New() -> *mut KoiCompositeList {
-    let param = Parameter::Composite(
-        "list".to_string(),
-        CompositeValue::List(Vec::new())
-    );
+pub unsafe extern "C" fn KoiCompositeList_New(name: *const c_char) -> *mut KoiCompositeList {
+    if name.is_null() {
+        return ptr::null_mut();
+    }
+
+    let name_str = match unsafe { CStr::from_ptr(name) }.to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => return ptr::null_mut(),
+    };
+
+    let param = Parameter::Composite(name_str, CompositeValue::List(Vec::new()));
     Box::into_raw(Box::new(param)) as *mut KoiCompositeList
+}
+
+/// Add composite list to command
+///
+/// Adds the specified composite list to the command's parameters.
+/// This function TAKES OWNERSHIP of the list pointer. The caller must NOT
+/// free the list using KoiCompositeList_Del after a successful call.
+///
+/// # Arguments
+///
+/// * `command` - Pointer to the command object
+/// * `list` - Pointer to the composite list parameter to add
+///
+/// # Returns
+///
+/// 0 on success, or a non-zero error code on failure:
+/// - -1: command or list pointer is NULL
+/// - -3: command pointer is invalid
+///
+/// # Safety
+///
+/// The `command` pointer must be a valid KoiCommand.
+/// The `list` pointer must be a valid KoiCompositeList created with KoiCompositeList_New.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_AddCompositeList(
+    command: *mut KoiCommand,
+    list: *mut KoiCompositeList,
+) -> i32 {
+    if command.is_null() || list.is_null() {
+        return -1;
+    }
+
+    let command = unsafe { &mut *(command as *mut Command) };
+    let list_param = unsafe { Box::from_raw(list as *mut Parameter) };
+
+    command.params.push(*list_param);
+    0
 }
 
 /// Add integer value to composite list
@@ -398,7 +454,7 @@ pub unsafe extern "C" fn KoiCompositeList_AddIntValue(
     if list.is_null() {
         return -1;
     }
-    
+
     let param = unsafe { &mut *(list as *mut Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
@@ -436,7 +492,7 @@ pub unsafe extern "C" fn KoiCompositeList_AddFloatValue(
     if list.is_null() {
         return -1;
     }
-    
+
     let param = unsafe { &mut *(list as *mut Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
@@ -476,12 +532,12 @@ pub unsafe extern "C" fn KoiCompositeList_AddStringValue(
     if list.is_null() || value.is_null() {
         return -1;
     }
-    
+
     let value_str = match unsafe { CStr::from_ptr(value) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return -2,
     };
-    
+
     let param = unsafe { &mut *(list as *mut Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
@@ -522,14 +578,14 @@ pub unsafe extern "C" fn KoiCompositeList_SetIntValue(
     if list.is_null() {
         return -1;
     }
-    
+
     let param = unsafe { &mut *(list as *mut Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
                 return -2;
             }
-            
+
             values[index] = Value::Int(value);
             0
         }
@@ -567,14 +623,14 @@ pub unsafe extern "C" fn KoiCompositeList_SetFloatValue(
     if list.is_null() {
         return -1;
     }
-    
+
     let param = unsafe { &mut *(list as *mut Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
                 return -2;
             }
-            
+
             values[index] = Value::Float(value);
             0
         }
@@ -614,19 +670,19 @@ pub unsafe extern "C" fn KoiCompositeList_SetStringValue(
     if list.is_null() || value.is_null() {
         return -1;
     }
-    
+
     let value_str = match unsafe { CStr::from_ptr(value) }.to_str() {
         Ok(s) => s.to_string(),
         Err(_) => return -2,
     };
-    
+
     let param = unsafe { &mut *(list as *mut Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
                 return -2;
             }
-            
+
             values[index] = Value::String(value_str);
             0
         }
@@ -662,14 +718,14 @@ pub unsafe extern "C" fn KoiCompositeList_RemoveValue(
     if list.is_null() {
         return -1;
     }
-    
+
     let param = unsafe { &mut *(list as *mut Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
             if index >= values.len() {
                 return -2;
             }
-            
+
             values.remove(index);
             0
         }
@@ -695,13 +751,11 @@ pub unsafe extern "C" fn KoiCompositeList_RemoveValue(
 ///
 /// The `list` pointer must be either NULL or point to a valid KoiCompositeList object.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCompositeList_Clear(
-    list: *mut KoiCompositeList,
-) -> i32 {
+pub unsafe extern "C" fn KoiCompositeList_Clear(list: *mut KoiCompositeList) -> i32 {
     if list.is_null() {
         return -1;
     }
-    
+
     let param = unsafe { &mut *(list as *mut Parameter) };
     match param {
         Parameter::Composite(_, CompositeValue::List(values)) => {
@@ -731,6 +785,104 @@ pub unsafe extern "C" fn KoiCompositeList_Del(list: *mut KoiCompositeList) {
     if list.is_null() {
         return;
     }
-    
+
     unsafe { drop(Box::from_raw(list as *mut Parameter)) };
+}
+
+/// Get boolean value from composite list by index
+///
+/// # Arguments
+/// * `list` - Pointer to the composite list parameter
+/// * `index` - Zero-based index of the value to retrieve
+/// * `out_value` - Pointer to store boolean value (1 for true, 0 for false)
+///
+/// # Returns
+/// 0 on success, non-zero on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeList_GetBoolValue(
+    list: *mut KoiCompositeList,
+    index: usize,
+    out_value: *mut i32,
+) -> i32 {
+    if list.is_null() || out_value.is_null() {
+        return -1;
+    }
+
+    let param = unsafe { &*(list as *const Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::List(values)) => {
+            if index >= values.len() {
+                return -2;
+            }
+
+            match &values[index] {
+                Value::Bool(value) => {
+                    unsafe { *out_value = if *value { 1 } else { 0 } };
+                    0
+                }
+                _ => -3,
+            }
+        }
+        _ => -4,
+    }
+}
+
+/// Add boolean value to composite list
+///
+/// # Arguments
+/// * `list` - Pointer to the composite list parameter
+/// * `value` - Boolean value to add (non-zero for true, 0 for false)
+///
+/// # Returns
+/// 0 on success, non-zero on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeList_AddBoolValue(
+    list: *mut KoiCompositeList,
+    value: i32,
+) -> i32 {
+    if list.is_null() {
+        return -1;
+    }
+
+    let param = unsafe { &mut *(list as *mut Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::List(values)) => {
+            values.push(Value::Bool(value != 0));
+            0
+        }
+        _ => -3,
+    }
+}
+
+/// Set boolean value in composite list by index
+///
+/// # Arguments
+/// * `list` - Pointer to the composite list parameter
+/// * `index` - Zero-based index of the value to replace
+/// * `value` - New boolean value (non-zero for true, 0 for false)
+///
+/// # Returns
+/// 0 on success, non-zero on error
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCompositeList_SetBoolValue(
+    list: *mut KoiCompositeList,
+    index: usize,
+    value: i32,
+) -> i32 {
+    if list.is_null() {
+        return -1;
+    }
+
+    let param = unsafe { &mut *(list as *mut Parameter) };
+    match param {
+        Parameter::Composite(_, CompositeValue::List(values)) => {
+            if index >= values.len() {
+                return -2;
+            }
+
+            values[index] = Value::Bool(value != 0);
+            0
+        }
+        _ => -3,
+    }
 }

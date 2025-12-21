@@ -4,19 +4,18 @@
 //! including command names, arguments, and various value types.
 
 use nom::{
+    IResult, Parser,
     branch::alt,
-    bytes::complete::{ is_not, tag, take_while, take_while1, take_while_m_n },
-    character::complete::{ char, digit1, multispace1 },
-    combinator::{ cut, map, map_opt, map_res, opt, recognize, value, verify },
-    error::{ context, ContextError, FromExternalError, ParseError },
-    multi::{ fold_many0, many0, many1, separated_list1 },
-    sequence::{ delimited, pair, preceded, separated_pair },
-    IResult,
-    Parser,
+    bytes::complete::{is_not, tag, take_while, take_while_m_n, take_while1},
+    character::complete::{char, digit1, multispace1},
+    combinator::{cut, map, map_opt, map_res, opt, recognize, value, verify},
+    error::{ContextError, FromExternalError, ParseError, context},
+    multi::{fold_many0, many0, many1, separated_list1},
+    sequence::{delimited, pair, preceded, separated_pair},
 };
 use std::str::FromStr;
 
-use crate::command::{ Command, CompositeValue, Parameter, Value };
+use crate::command::{Command, CompositeValue, Parameter, Value};
 
 /// Parse a Python-style escaped character: \n, \t, \r, \x41, \u0041, etc.
 /// Also handles line continuation where \\\n should be ignored.
@@ -41,36 +40,39 @@ fn parse_escaped_char<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a
                 char('x'),
                 map_opt(
                     take_while_m_n(2, 2, |c: char| c.is_ascii_hexdigit()),
-                    |hex: &str| u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
-                )
+                    |hex: &str| u32::from_str_radix(hex, 16).ok().and_then(char::from_u32),
+                ),
             ),
             // Unicode escape: \uhhhh
             preceded(
                 char('u'),
                 map_opt(
                     take_while_m_n(4, 4, |c: char| c.is_ascii_hexdigit()),
-                    |hex: &str| u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
-                )
+                    |hex: &str| u32::from_str_radix(hex, 16).ok().and_then(char::from_u32),
+                ),
             ),
             // Unicode escape: \Uhhhhhhhh
             preceded(
                 char('U'),
                 map_opt(
                     take_while_m_n(8, 8, |c: char| c.is_ascii_hexdigit()),
-                    |hex: &str| u32::from_str_radix(hex, 16).ok().and_then(char::from_u32)
-                )
+                    |hex: &str| u32::from_str_radix(hex, 16).ok().and_then(char::from_u32),
+                ),
             ),
             // Octal escape: \ooo (1-3 digits)
             map_opt(
                 take_while_m_n(1, 3, |c: char| c.is_digit(8)),
-                |octal: &str| u32::from_str_radix(octal, 8).ok().and_then(char::from_u32)
+                |octal: &str| u32::from_str_radix(octal, 8).ok().and_then(char::from_u32),
             ),
-        ))
-    ).parse(input)
+        )),
+    )
+    .parse(input)
 }
 
 /// Parse a non-empty block of text that doesn't include \ or "
-fn parse_string_literal<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
+fn parse_string_literal<'a, E: ParseError<&'a str>>(
+    input: &'a str,
+) -> IResult<&'a str, &'a str, E> {
     let not_quote_slash = is_not("\"\\");
     verify(not_quote_slash, |s: &str| !s.is_empty()).parse(input)
 }
@@ -90,71 +92,114 @@ fn parse_line_continuation<'a, E: ParseError<&'a str>>(input: &'a str) -> IResul
 }
 
 /// Combine parse_string_literal, parse_line_continuation, and parse_escaped_char into a StringFragment
-fn parse_string_fragment<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, StringFragment<'a>, E> {
+fn parse_string_fragment<'a, E: ParseError<&'a str>>(
+    input: &'a str,
+) -> IResult<&'a str, StringFragment<'a>, E> {
     alt((
         map(parse_string_literal, StringFragment::Literal),
-        map(parse_line_continuation, |_| { StringFragment::LineContinuation }),
+        map(parse_line_continuation, |_| {
+            StringFragment::LineContinuation
+        }),
         map(parse_escaped_char, StringFragment::EscapedChar),
-    )).parse(input)
+    ))
+    .parse(input)
 }
 
 /// Parse a quoted string
-fn parse_string<'a, E: ParseError<&'a str> + ContextError<&'a str>>(input: &'a str) -> IResult<&'a str, Value, E> {
-    let build_string = fold_many0(parse_string_fragment, String::new, |mut string, fragment| {
-        match fragment {
-            StringFragment::Literal(s) => string.push_str(s),
-            StringFragment::EscapedChar(c) => string.push(c),
-            StringFragment::LineContinuation => {
-                // Line continuation should be ignored - do nothing
+fn parse_string<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
+    input: &'a str,
+) -> IResult<&'a str, Value, E> {
+    let build_string = fold_many0(
+        parse_string_fragment,
+        String::new,
+        |mut string, fragment| {
+            match fragment {
+                StringFragment::Literal(s) => string.push_str(s),
+                StringFragment::EscapedChar(c) => string.push(c),
+                StringFragment::LineContinuation => {
+                    // Line continuation should be ignored - do nothing
+                }
             }
-        }
-        string
-    });
+            string
+        },
+    );
 
-    context("string", delimited(char('"'), map(build_string, Value::String), char('"'))).parse(
-        input
+    context(
+        "string",
+        delimited(char('"'), map(build_string, Value::String), char('"')),
     )
+    .parse(input)
 }
 
 /// Parse a decimal integer
-fn parse_decimal_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, i64, E> {
-    map_res(recognize(pair(opt(char('-')), digit1)), |s: &str| { i64::from_str(s) }).parse(input)
+fn parse_decimal_int<
+    'a,
+    E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, i64, E> {
+    map_res(recognize(pair(opt(char('-')), digit1)), |s: &str| {
+        i64::from_str(s)
+    })
+    .parse(input)
 }
 
 /// Parse a hexadecimal integer (0x...)
-fn parse_hex_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, i64, E> {
+fn parse_hex_int<
+    'a,
+    E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, i64, E> {
     preceded(
         tag("0x"),
-        map_res(
-            take_while1(|c: char| c.is_ascii_hexdigit()),
-            |s: &str| { i64::from_str_radix(s, 16) }
-        )
-    ).parse(input)
+        map_res(take_while1(|c: char| c.is_ascii_hexdigit()), |s: &str| {
+            i64::from_str_radix(s, 16)
+        }),
+    )
+    .parse(input)
 }
 
 /// Parse a binary integer (0b...)
-fn parse_bin_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, i64, E> {
+fn parse_bin_int<
+    'a,
+    E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, i64, E> {
     preceded(
         tag("0b"),
-        map_res(
-            take_while1(|c: char| c == '0' || c == '1'),
-            |s: &str| { i64::from_str_radix(s, 2) }
-        )
-    ).parse(input)
+        map_res(take_while1(|c: char| c == '0' || c == '1'), |s: &str| {
+            i64::from_str_radix(s, 2)
+        }),
+    )
+    .parse(input)
 }
 
-fn parse_oct_int<'a, E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, i64, E> {
+fn parse_oct_int<
+    'a,
+    E: ParseError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, i64, E> {
     preceded(
         tag("0o"),
-        map_res(
-            take_while1(|c: char| c.is_ascii_digit()),
-            |s: &str| { i64::from_str_radix(s, 8) }
-        )
-    ).parse(input)
+        map_res(take_while1(|c: char| c.is_ascii_digit()), |s: &str| {
+            i64::from_str_radix(s, 8)
+        }),
+    )
+    .parse(input)
 }
 
 /// Parse any integer type (decimal, hex, binary)
-fn parse_integer<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, Value, E> {
+fn parse_integer<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseIntError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, Value, E> {
     context(
         "integer",
         alt((
@@ -162,12 +207,20 @@ fn parse_integer<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExtern
             map(parse_bin_int, Value::Int),
             map(parse_oct_int, Value::Int),
             map(parse_decimal_int, Value::Int),
-        ))
-    ).parse(input)
+        )),
+    )
+    .parse(input)
 }
 
 /// Parse a float number
-fn parse_float<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Value, E> {
+fn parse_float<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseFloatError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, Value, E> {
     context(
         "float",
         map_res(
@@ -179,9 +232,10 @@ fn parse_float<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternal
                     recognize((digit1, float_exp)),
                 )),
             )),
-            |s: &str| f64::from_str(s).map(Value::Float)
-        )
-    ).parse(input)
+            |s: &str| f64::from_str(s).map(Value::Float),
+        ),
+    )
+    .parse(input)
 }
 
 /// Helper for float parsing - digits or empty
@@ -191,58 +245,114 @@ fn digit0<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a st
 
 /// Helper for float parsing - exponent part
 fn float_exp<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
-    recognize((alt((char('e'), char('E'))), opt(alt((char('+'), char('-')))), digit1)).parse(input)
+    recognize((
+        alt((char('e'), char('E'))),
+        opt(alt((char('+'), char('-')))),
+        digit1,
+    ))
+    .parse(input)
 }
 
 /// Parse a literal (valid identifier)
 fn parse_literal_str<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
-    recognize(
-        pair(
-            take_while1(|c: char| c.is_ascii_alphabetic() || c == '_'),
-            take_while(|c: char| c.is_ascii_alphanumeric() || c == '_')
-        )
-    ).parse(input)
+    recognize(pair(
+        take_while1(|c: char| c.is_ascii_alphabetic() || c == '_'),
+        take_while(|c: char| c.is_ascii_alphanumeric() || c == '_'),
+    ))
+    .parse(input)
 }
 
 /// Parse a literal (valid identifier)
-fn parse_literal<'a, E: ParseError<&'a str> + ContextError<&'a str>>(input: &'a str) -> IResult<&'a str, Value, E> {
+fn parse_literal<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
+    input: &'a str,
+) -> IResult<&'a str, Value, E> {
     context(
         "literal",
-        map(parse_literal_str, |s: &str| Value::String(s.to_string()))
-    ).parse(input)
+        map(parse_literal_str, |s: &str| Value::String(s.to_string())),
+    )
+    .parse(input)
+}
+
+/// Parse a boolean literal (true or false)
+fn parse_bool<'a, E: ParseError<&'a str> + ContextError<&'a str>>(
+    input: &'a str,
+) -> IResult<&'a str, Value, E> {
+    context(
+        "boolean",
+        alt((
+            map(tag("true"), |_| Value::Bool(true)),
+            map(tag("false"), |_| Value::Bool(false)),
+        )),
+    )
+    .parse(input)
 }
 
 /// Parse any basic value type
-fn parse_basic_value<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Value, E> {
+fn parse_basic_value<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + FromExternalError<&'a str, std::num::ParseFloatError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, Value, E> {
     context(
         "basic_value",
         alt((
             parse_string, // Try string first since it starts with a quote
+            parse_bool,
             parse_float,
             parse_integer,
             parse_literal,
-        ))
-    ).parse(input)
+        )),
+    )
+    .parse(input)
 }
 
 /// Parse a single parameter value (not composite)
-fn parse_single_param<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Parameter, E> {
+fn parse_single_param<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + FromExternalError<&'a str, std::num::ParseFloatError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, Parameter, E> {
     map(parse_basic_value, Parameter::Basic).parse(input)
 }
 
 /// Parse a list of values in parentheses: (item1, item2, ...)
-fn parse_value_list<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Vec<Value>, E> {
+fn parse_value_list<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + FromExternalError<&'a str, std::num::ParseFloatError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, Vec<Value>, E> {
     context(
         "list",
         separated_list1(
             preceded(parse_whitespace_with_continuation, char(',')),
-            preceded(parse_whitespace_with_continuation, parse_basic_value)
-        )
-    ).parse(input)
+            preceded(parse_whitespace_with_continuation, parse_basic_value),
+        ),
+    )
+    .parse(input)
 }
 
 /// Parse a dictionary in parentheses: (key1: value1, key2: value2, ...)
-fn parse_dict<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Vec<(String, Value)>, E> {
+fn parse_dict<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + FromExternalError<&'a str, std::num::ParseFloatError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, Vec<(String, Value)>, E> {
     context(
         "dictionary",
         separated_list1(
@@ -250,23 +360,33 @@ fn parse_dict<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalE
             preceded(
                 parse_whitespace_with_continuation,
                 separated_pair(
-                    map(parse_literal_str, |v| { v.to_string() }),
+                    map(parse_literal_str, |v| v.to_string()),
                     preceded(parse_whitespace_with_continuation, char(':')),
-                    preceded(parse_whitespace_with_continuation, cut(parse_basic_value))
-                )
-            )
-        )
-    ).parse(input)
+                    preceded(parse_whitespace_with_continuation, cut(parse_basic_value)),
+                ),
+            ),
+        ),
+    )
+    .parse(input)
 }
 
 /// Parse composite parameters: key(value), key(item1, item2), key(x: 1, y: 2)
-fn parse_composite_param<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Parameter, E> {
-    context("composite_parameter", (
-        parse_literal_str,
-        delimited(
-            (char('('), parse_whitespace_with_continuation),
-            cut(
-                alt((
+fn parse_composite_param<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + FromExternalError<&'a str, std::num::ParseFloatError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, Parameter, E> {
+    context(
+        "composite_parameter",
+        (
+            parse_literal_str,
+            delimited(
+                (char('('), parse_whitespace_with_continuation),
+                cut(alt((
                     map(parse_dict, CompositeValue::Dict),
                     map(parse_value_list, |values| {
                         if values.len() == 1 {
@@ -275,52 +395,84 @@ fn parse_composite_param<'a, E: ParseError<&'a str> + ContextError<&'a str> + Fr
                             CompositeValue::List(values)
                         }
                     }),
-                ))
+                ))),
+                cut((parse_whitespace_with_continuation, char(')'))),
             ),
-            cut((parse_whitespace_with_continuation, char(')')))
         ),
-    ))
-        .parse(input)
-        .map(|(remaining, (key, composite))| {
-            (remaining, Parameter::Composite(key.to_string(), composite))
-        })
+    )
+    .parse(input)
+    .map(|(remaining, (key, composite))| {
+        (remaining, Parameter::Composite(key.to_string(), composite))
+    })
 }
 
 /// Parse any parameter type (basic or composite)
-fn parse_parameter<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Parameter, E> {
-    context("parameter", alt((parse_composite_param, parse_single_param))).parse(input)
+fn parse_parameter<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + FromExternalError<&'a str, std::num::ParseFloatError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, Parameter, E> {
+    context(
+        "parameter",
+        alt((parse_composite_param, parse_single_param)),
+    )
+    .parse(input)
 }
 
 /// Parse a command name (can be literal or number)
-fn parse_command_name<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError>>(input: &'a str) -> IResult<&'a str, String, E> {
+fn parse_command_name<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseIntError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, String, E> {
     context(
         "command_name",
-        cut(
-            alt((
-                map(parse_literal_str, |v| v.to_string()),
-                map(parse_decimal_int, |n| n.to_string()),
-            ))
-        )
-    ).parse(input)
+        cut(alt((
+            map(parse_literal_str, |v| v.to_string()),
+            map(parse_decimal_int, |n| n.to_string()),
+        ))),
+    )
+    .parse(input)
 }
 
 /// Parse whitespace that may include line continuations (backslash + newline)
 fn parse_whitespace_with_continuation<'a, E: ParseError<&'a str>>(
-    input: &'a str
+    input: &'a str,
 ) -> IResult<&'a str, &'a str, E> {
     recognize(many0(alt((multispace1, tag("\\\n"))))).parse(input)
 }
 
 /// Parse whitespace that must include line continuations (backslash + newline)
 fn parse_whitespace_with_continuation1<'a, E: ParseError<&'a str>>(
-    input: &'a str
+    input: &'a str,
 ) -> IResult<&'a str, &'a str, E> {
     recognize(many1(alt((multispace1, tag("\\\n"))))).parse(input)
 }
 
 /// Parse a complete command line: command_name [param1] [param2] ...
-pub fn parse_command_line<'a, E: ParseError<&'a str> + ContextError<&'a str> + FromExternalError<&'a str, std::num::ParseIntError> + FromExternalError<&'a str, std::num::ParseFloatError>>(input: &'a str) -> IResult<&'a str, Command, E> {
-    (parse_command_name, many0(preceded(parse_whitespace_with_continuation1, cut(parse_parameter))))
+pub fn parse_command_line<
+    'a,
+    E: ParseError<&'a str>
+        + ContextError<&'a str>
+        + FromExternalError<&'a str, std::num::ParseIntError>
+        + FromExternalError<&'a str, std::num::ParseFloatError>,
+>(
+    input: &'a str,
+) -> IResult<&'a str, Command, E> {
+    (
+        parse_command_name,
+        many0(preceded(
+            parse_whitespace_with_continuation1,
+            cut(parse_parameter),
+        )),
+    )
         .parse(input)
         .map(|(remaining, (name, params))| (remaining, Command::new(name, params)))
 }
@@ -331,23 +483,50 @@ mod tests {
 
     #[test]
     fn test_parse_integer() {
-        assert_eq!(parse_integer::<nom::error::Error<&str>>("123"), Ok(("", Value::Int(123))));
-        assert_eq!(parse_integer::<nom::error::Error<&str>>("-456"), Ok(("", Value::Int(-456))));
-        assert_eq!(parse_integer::<nom::error::Error<&str>>("0x1A"), Ok(("", Value::Int(26))));
-        assert_eq!(parse_integer::<nom::error::Error<&str>>("0b101"), Ok(("", Value::Int(5))));
+        assert_eq!(
+            parse_integer::<nom::error::Error<&str>>("123"),
+            Ok(("", Value::Int(123)))
+        );
+        assert_eq!(
+            parse_integer::<nom::error::Error<&str>>("-456"),
+            Ok(("", Value::Int(-456)))
+        );
+        assert_eq!(
+            parse_integer::<nom::error::Error<&str>>("0x1A"),
+            Ok(("", Value::Int(26)))
+        );
+        assert_eq!(
+            parse_integer::<nom::error::Error<&str>>("0b101"),
+            Ok(("", Value::Int(5)))
+        );
     }
 
     #[test]
     fn test_parse_float() {
-        assert_eq!(parse_float::<nom::error::Error<&str>>("1.23"), Ok(("", Value::Float(1.23))));
-        assert_eq!(parse_float::<nom::error::Error<&str>>("-4.56"), Ok(("", Value::Float(-4.56))));
-        assert_eq!(parse_float::<nom::error::Error<&str>>("1e-2"), Ok(("", Value::Float(0.01))));
+        assert_eq!(
+            parse_float::<nom::error::Error<&str>>("1.23"),
+            Ok(("", Value::Float(1.23)))
+        );
+        assert_eq!(
+            parse_float::<nom::error::Error<&str>>("-4.56"),
+            Ok(("", Value::Float(-4.56)))
+        );
+        assert_eq!(
+            parse_float::<nom::error::Error<&str>>("1e-2"),
+            Ok(("", Value::Float(0.01)))
+        );
     }
 
     #[test]
     fn test_parse_literal() {
-        assert_eq!(parse_literal::<nom::error::Error<&str>>("hello"), Ok(("", Value::String("hello".to_string()))));
-        assert_eq!(parse_literal::<nom::error::Error<&str>>("_test_123"), Ok(("", Value::String("_test_123".to_string()))));
+        assert_eq!(
+            parse_literal::<nom::error::Error<&str>>("hello"),
+            Ok(("", Value::String("hello".to_string())))
+        );
+        assert_eq!(
+            parse_literal::<nom::error::Error<&str>>("_test_123"),
+            Ok(("", Value::String("_test_123".to_string())))
+        );
     }
 
     #[test]
@@ -460,7 +639,7 @@ mod tests {
     #[test]
     fn test_parse_mixed_parameters() {
         let result = parse_command_line::<nom::error::Error<&str>>(
-            "draw Line 2 pos(x: 0, y: 0) thickness(2) color(255, 255, 255)"
+            "draw Line 2 pos(x: 0, y: 0) thickness(2) color(255, 255, 255)",
         );
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
@@ -473,12 +652,10 @@ mod tests {
             cmd.params()[2],
             Parameter::Composite(
                 "pos".to_string(),
-                CompositeValue::Dict(
-                    vec![
-                        ("x".to_string(), Value::from(0).into()),
-                        ("y".to_string(), Value::from(0).into())
-                    ]
-                )
+                CompositeValue::Dict(vec![
+                    ("x".to_string(), Value::from(0).into()),
+                    ("y".to_string(), Value::from(0).into())
+                ])
             )
         );
         assert_eq!(
@@ -489,9 +666,11 @@ mod tests {
             cmd.params()[4],
             Parameter::Composite(
                 "color".to_string(),
-                CompositeValue::List(
-                    vec![Value::from(255).into(), Value::from(255).into(), Value::from(255).into()]
-                )
+                CompositeValue::List(vec![
+                    Value::from(255).into(),
+                    Value::from(255).into(),
+                    Value::from(255).into()
+                ])
             )
         );
     }
@@ -510,7 +689,7 @@ mod tests {
     fn test_parse_complex_example() {
         // Test the example from Kola README
         let result = parse_command_line::<nom::error::Error<&str>>(
-            "draw Line 2 pos0(x: 0, y: 0) pos1(x: 16, y: 16) thickness(2) color(255, 255, 255)"
+            "draw Line 2 pos0(x: 0, y: 0) pos1(x: 16, y: 16) thickness(2) color(255, 255, 255)",
         );
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
@@ -551,7 +730,8 @@ mod tests {
         assert_eq!(cmd.params().len(), 1);
 
         // Test line continuation in list parameters
-        let result = parse_command_line::<nom::error::Error<&str>>("draw color(255,\\\n255,\\\n255)");
+        let result =
+            parse_command_line::<nom::error::Error<&str>>("draw color(255,\\\n255,\\\n255)");
         println!("Composite list with line continuation: {:?}", result);
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();
@@ -572,7 +752,9 @@ mod tests {
     #[test]
     fn test_multiple_line_continuations() {
         // Test multiple line continuations
-        let result = parse_command_line::<nom::error::Error<&str>>("draw \\\nLine \\\n2 \\\npos(x: 0,\\\ny: 0)");
+        let result = parse_command_line::<nom::error::Error<&str>>(
+            "draw \\\nLine \\\n2 \\\npos(x: 0,\\\ny: 0)",
+        );
         println!("Multiple line continuations: {:?}", result);
         assert!(result.is_ok());
         let (remaining, cmd) = result.unwrap();

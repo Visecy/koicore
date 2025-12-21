@@ -46,6 +46,8 @@ pub enum Value {
     Int(i64),
     /// Floating-point values (64-bit)
     Float(f64),
+    /// Boolean values
+    Bool(bool),
     /// String values (UTF-8 encoded)
     String(String),
 }
@@ -59,6 +61,12 @@ impl From<i64> for Value {
 impl From<f64> for Value {
     fn from(f: f64) -> Self {
         Self::Float(f)
+    }
+}
+
+impl From<bool> for Value {
+    fn from(v: bool) -> Self {
+        Value::Bool(v)
     }
 }
 
@@ -79,6 +87,7 @@ impl fmt::Display for Value {
         match self {
             Value::Int(i) => write!(f, "{}", i),
             Value::Float(fl) => write!(f, "{}", fl),
+            Value::Bool(b) => write!(f, "{}", b),
             Value::String(s) => {
                 // Check if the string needs to be quoted
                 // It needs quoting if:

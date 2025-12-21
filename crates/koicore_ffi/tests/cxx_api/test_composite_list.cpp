@@ -9,7 +9,7 @@ using namespace koicore;
 // Test KoiCompositeList functionality
 TEST(CompositeListTest, TestCreateList) {
     // Create a new empty list
-    KoiCompositeList* list = KoiCompositeList_New();
+    KoiCompositeList* list = KoiCompositeList_New("test_list");
     EXPECT_NE(list, nullptr);
     
     // Check initial length
@@ -20,7 +20,7 @@ TEST(CompositeListTest, TestCreateList) {
 
 TEST(CompositeListTest, TestAddValues) {
     // Create a new list
-    KoiCompositeList* list = KoiCompositeList_New();
+    KoiCompositeList* list = KoiCompositeList_New("add_test");
     EXPECT_NE(list, nullptr);
     
     // Add values
@@ -55,7 +55,7 @@ TEST(CompositeListTest, TestAddValues) {
 
 TEST(CompositeListTest, TestSetValues) {
     // Create a new list with initial values
-    KoiCompositeList* list = KoiCompositeList_New();
+    KoiCompositeList* list = KoiCompositeList_New("set_test");
     EXPECT_NE(list, nullptr);
     
     EXPECT_EQ(KoiCompositeList_AddIntValue(list, 100), 0);
@@ -86,7 +86,7 @@ TEST(CompositeListTest, TestSetValues) {
 
 TEST(CompositeListTest, TestRemoveValues) {
     // Create a new list with values
-    KoiCompositeList* list = KoiCompositeList_New();
+    KoiCompositeList* list = KoiCompositeList_New("remove_test");
     EXPECT_NE(list, nullptr);
     
     EXPECT_EQ(KoiCompositeList_AddIntValue(list, 1), 0);
@@ -119,7 +119,7 @@ TEST(CompositeListTest, TestRemoveValues) {
 
 TEST(CompositeListTest, TestClearList) {
     // Create a new list with values
-    KoiCompositeList* list = KoiCompositeList_New();
+    KoiCompositeList* list = KoiCompositeList_New("clear_test");
     EXPECT_NE(list, nullptr);
     
     EXPECT_EQ(KoiCompositeList_AddIntValue(list, 1), 0);
@@ -144,24 +144,31 @@ TEST(CompositeListTest, TestListInCommand) {
     EXPECT_NE(cmd, nullptr);
     
     // Create a list
-    KoiCompositeList* list = KoiCompositeList_New();
+    KoiCompositeList* list = KoiCompositeList_New("my_list");
     EXPECT_NE(list, nullptr);
     
     // Add values to the list
     EXPECT_EQ(KoiCompositeList_AddIntValue(list, 42), 0);
     EXPECT_EQ(KoiCompositeList_AddStringValue(list, "hello"), 0);
     
-    // Note: There's no direct API to add a list to a command in the header
-    // This test demonstrates how to work with a list that might be part of a command
+    // Add list to command
+    EXPECT_EQ(KoiCommand_AddCompositeList(cmd, list), 0);
+    
+    // Check command parameter count
+    EXPECT_EQ(KoiCommand_GetParamCount(cmd), 1);
+    
+    // Get list back from command
+    KoiCompositeList* list_back = KoiCommand_GetCompositeList(cmd, 0);
+    EXPECT_NE(list_back, nullptr);
+    EXPECT_EQ(KoiCompositeList_GetLength(list_back), 2);
     
     // Clean up
-    KoiCompositeList_Del(list);
     KoiCommand_Del(cmd);
 }
 
 TEST(CompositeListTest, TestStringLen) {
     // Create a new list
-    KoiCompositeList* list = KoiCompositeList_New();
+    KoiCompositeList* list = KoiCompositeList_New("len_test");
     EXPECT_NE(list, nullptr);
     
     // Add a string value

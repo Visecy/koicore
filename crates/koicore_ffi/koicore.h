@@ -101,6 +101,15 @@ typedef struct KoiCompositeList {
 
 } KoiCompositeList;
 
+/**
+ * Opaque handle for composite single parameter
+ *
+ * Represents a named parameter with a single value, e.g., name(value).
+ */
+typedef struct KoiCompositeSingle {
+
+} KoiCompositeSingle;
+
 typedef struct KoiParserConfig {
   /**
    * The command threshold (number of # required for commands)
@@ -386,7 +395,12 @@ int32_t KoiCommand_Compare(const struct KoiCommand *command1, const struct KoiCo
  * Create a new composite dict parameter
  *
  * Creates an empty dictionary with no key-value pairs. The returned pointer
- * must be freed using KoiCompositeDict_Del when no longer needed to avoid memory leaks.
+ * must be freed using KoiCompositeDict_Del when no longer needed to avoid memory leaks,
+ * unless it is passed to KoiCommand_AddCompositeDict.
+ *
+ * # Arguments
+ *
+ * * `name` - The name of the composite parameter (null-terminated C string)
  *
  * # Returns
  * Pointer to the new composite dict parameter, or null on error
@@ -395,7 +409,32 @@ int32_t KoiCommand_Compare(const struct KoiCommand *command1, const struct KoiCo
  * The returned pointer must not be used after calling KoiCompositeDict_Del on it.
  * The caller is responsible for memory management of the returned object.
  */
-struct KoiCompositeDict *KoiCompositeDict_New(void);
+struct KoiCompositeDict *KoiCompositeDict_New(const char *name);
+
+/**
+ * Add composite dict to command
+ *
+ * Adds the specified composite dict to the command's parameters.
+ * This function TAKES OWNERSHIP of the dict pointer. The caller must NOT
+ * free the dict using KoiCompositeDict_Del after a successful call.
+ *
+ * # Arguments
+ *
+ * * `command` - Pointer to the command object
+ * * `dict` - Pointer to the composite dict parameter to add
+ *
+ * # Returns
+ *
+ * 0 on success, or a non-zero error code on failure:
+ * - -1: command or dict pointer is NULL
+ * - -3: command pointer is invalid
+ *
+ * # Safety
+ *
+ * The `command` pointer must be a valid KoiCommand.
+ * The `dict` pointer must be a valid KoiCompositeDict created with KoiCompositeDict_New.
+ */
+int32_t KoiCommand_AddCompositeDict(struct KoiCommand *command, struct KoiCompositeDict *dict);
 
 /**
  * Get composite dict parameter from command
@@ -663,6 +702,36 @@ uintptr_t KoiCompositeDict_GetStringValue(struct KoiCompositeDict *dict,
 uintptr_t KoiCompositeDict_GetStringValueLen(struct KoiCompositeDict *dict, const char *key);
 
 /**
+ * Get boolean value from composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ * * `out_value` - Pointer to store boolean value (1 for true, 0 for false)
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_GetBoolValue(struct KoiCompositeDict *dict,
+                                      const char *key,
+                                      int32_t *out_value);
+
+/**
+ * Set boolean value in composite dict by key
+ *
+ * # Arguments
+ * * `dict` - Composite dict parameter pointer
+ * * `key` - Key name
+ * * `value` - Boolean value to set (non-zero for true, 0 for false)
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeDict_SetBoolValue(struct KoiCompositeDict *dict,
+                                      const char *key,
+                                      int32_t value);
+
+/**
  * Get composite list parameter from command
  *
  * This function retrieves a list parameter from a command at the specified index.
@@ -849,16 +918,47 @@ uintptr_t KoiCompositeList_GetStringValueLen(struct KoiCompositeList *list, uint
  * This function creates a new empty composite list parameter that can be
  * added to a command or used independently.
  *
+ * # Arguments
+ *
+ * * `name` - The name of the composite parameter (null-terminated C string)
+ *
  * # Returns
  *
  * Pointer to the newly created composite list parameter, or NULL on failure.
- * The caller is responsible for freeing the list using KoiCompositeList_Del.
+ * The caller is responsible for freeing the list using KoiCompositeList_Del,
+ * unless it is passed to KoiCommand_AddCompositeList.
  *
  * # Safety
  *
- * The returned pointer must be freed using KoiCompositeList_Del when no longer needed.
+ * The returned pointer must be freed using KoiCompositeList_Del when no longer needed,
+ * unless ownership is transferred to a command.
  */
-struct KoiCompositeList *KoiCompositeList_New(void);
+struct KoiCompositeList *KoiCompositeList_New(const char *name);
+
+/**
+ * Add composite list to command
+ *
+ * Adds the specified composite list to the command's parameters.
+ * This function TAKES OWNERSHIP of the list pointer. The caller must NOT
+ * free the list using KoiCompositeList_Del after a successful call.
+ *
+ * # Arguments
+ *
+ * * `command` - Pointer to the command object
+ * * `list` - Pointer to the composite list parameter to add
+ *
+ * # Returns
+ *
+ * 0 on success, or a non-zero error code on failure:
+ * - -1: command or list pointer is NULL
+ * - -3: command pointer is invalid
+ *
+ * # Safety
+ *
+ * The `command` pointer must be a valid KoiCommand.
+ * The `list` pointer must be a valid KoiCompositeList created with KoiCompositeList_New.
+ */
+int32_t KoiCommand_AddCompositeList(struct KoiCommand *command, struct KoiCompositeList *list);
 
 /**
  * Add integer value to composite list
@@ -1074,6 +1174,48 @@ int32_t KoiCompositeList_Clear(struct KoiCompositeList *list);
  * After this function returns, the pointer is invalid and must not be used.
  */
 void KoiCompositeList_Del(struct KoiCompositeList *list);
+
+/**
+ * Get boolean value from composite list by index
+ *
+ * # Arguments
+ * * `list` - Pointer to the composite list parameter
+ * * `index` - Zero-based index of the value to retrieve
+ * * `out_value` - Pointer to store boolean value (1 for true, 0 for false)
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_GetBoolValue(struct KoiCompositeList *list,
+                                      uintptr_t index,
+                                      int32_t *out_value);
+
+/**
+ * Add boolean value to composite list
+ *
+ * # Arguments
+ * * `list` - Pointer to the composite list parameter
+ * * `value` - Boolean value to add (non-zero for true, 0 for false)
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_AddBoolValue(struct KoiCompositeList *list, int32_t value);
+
+/**
+ * Set boolean value in composite list by index
+ *
+ * # Arguments
+ * * `list` - Pointer to the composite list parameter
+ * * `index` - Zero-based index of the value to replace
+ * * `value` - New boolean value (non-zero for true, 0 for false)
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCompositeList_SetBoolValue(struct KoiCompositeList *list,
+                                      uintptr_t index,
+                                      int32_t value);
 
 /**
  * Get number of parameters in command
@@ -1316,6 +1458,113 @@ int32_t KoiCommand_SetFloatParameter(struct KoiCommand *command, uintptr_t index
 int32_t KoiCommand_SetStringParameter(struct KoiCommand *command,
                                       uintptr_t index,
                                       const char *value);
+
+/**
+ * Get boolean value from basic parameter
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
+ * * `out_value` - Pointer to store boolean value (1 for true, 0 for false)
+ *
+ * # Returns
+ * 0 on success, non-zero on error or type mismatch
+ */
+int32_t KoiCommand_GetBoolParam(struct KoiCommand *command, uintptr_t index, int32_t *out_value);
+
+/**
+ * Add a new boolean parameter to command
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `value` - Boolean value (non-zero for true, 0 for false)
+ *
+ * # Returns
+ * 0 on success, non-zero on error
+ */
+int32_t KoiCommand_AddBoolParameter(struct KoiCommand *command, int32_t value);
+
+/**
+ * Modify boolean parameter value
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index
+ * * `value` - New boolean value (non-zero for true, 0 for false)
+ *
+ * # Returns
+ * 0 on success, non-zero on error or type mismatch
+ */
+int32_t KoiCommand_SetBoolParameter(struct KoiCommand *command, uintptr_t index, int32_t value);
+
+/**
+ * Create a new composite single parameter
+ *
+ * # Arguments
+ * * `name` - The name of the composite parameter
+ * * `value` - Initial integer value (dummy, will be overwritten by Set functions)
+ *
+ * # Returns
+ * Pointer to the new composite single parameter, or NULL on error
+ */
+struct KoiCompositeSingle *KoiCompositeSingle_New(const char *name);
+
+/**
+ * Get composite single parameter from command
+ */
+struct KoiCompositeSingle *KoiCommand_GetCompositeSingle(struct KoiCommand *command,
+                                                         uintptr_t index);
+
+/**
+ * Free composite single parameter
+ */
+void KoiCompositeSingle_Del(struct KoiCompositeSingle *single);
+
+/**
+ * Set integer value in composite single
+ */
+int32_t KoiCompositeSingle_SetIntValue(struct KoiCompositeSingle *single, int64_t value);
+
+/**
+ * Get integer value from composite single
+ */
+int32_t KoiCompositeSingle_GetIntValue(struct KoiCompositeSingle *single, int64_t *out_value);
+
+/**
+ * Set float value in composite single
+ */
+int32_t KoiCompositeSingle_SetFloatValue(struct KoiCompositeSingle *single, double value);
+
+/**
+ * Get float value from composite single
+ */
+int32_t KoiCompositeSingle_GetFloatValue(struct KoiCompositeSingle *single, double *out_value);
+
+/**
+ * Set string value in composite single
+ */
+int32_t KoiCompositeSingle_SetStringValue(struct KoiCompositeSingle *single, const char *value);
+
+/**
+ * Set boolean value in composite single
+ */
+int32_t KoiCompositeSingle_SetBoolValue(struct KoiCompositeSingle *single, int32_t value);
+
+/**
+ * Get boolean value from composite single
+ */
+int32_t KoiCompositeSingle_GetBoolValue(struct KoiCompositeSingle *single, int32_t *out_value);
+
+/**
+ * Add composite single to command
+ */
+int32_t KoiCommand_AddCompositeSingle(struct KoiCommand *command,
+                                      struct KoiCompositeSingle *single);
+
+/**
+ * Get value type from composite single
+ */
+int32_t KoiCompositeSingle_GetValueType(struct KoiCompositeSingle *single);
 
 /**
  * Create a new KoiLang parser

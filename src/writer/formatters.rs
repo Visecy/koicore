@@ -154,6 +154,7 @@ impl Formatters {
         match value {
             Value::Int(i) => Self::format_number(i, options),
             Value::Float(f) => f.to_string(),
+            Value::Bool(b) => b.to_string(),
             Value::String(s) => Self::format_string(s, options),
         }
     }
