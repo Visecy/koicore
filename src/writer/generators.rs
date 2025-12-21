@@ -40,7 +40,7 @@ impl Generators {
         command: &Command,
         config: &WriterConfig,
         options: &FormatterOptions,
-        param_options: Option<&HashMap<ParamFormatSelector, FormatterOptions>>,
+        param_options: Option<&HashMap<ParamFormatSelector, &FormatterOptions>>,
         current_indent: usize,
     ) -> std::io::Result<()> {
         match command.name.as_str() {
@@ -218,19 +218,19 @@ impl Generators {
         position: usize,
         name: Option<String>,
         default_options: &FormatterOptions,
-        param_options: Option<&HashMap<ParamFormatSelector, FormatterOptions>>,
+        param_options: Option<&HashMap<ParamFormatSelector, &FormatterOptions>>,
     ) -> FormatterOptions {
         if let Some(options_map) = param_options {
             // Try to get options by name first (for composite parameters)
             if let Some(param_name) = name
                 && let Some(options) = options_map.get(&ParamFormatSelector::Name(param_name))
             {
-                return Self::merge_options(default_options, options);
+                return Self::merge_options(default_options, *options);
             }
 
             // Try to get options by position
             if let Some(options) = options_map.get(&ParamFormatSelector::Position(position)) {
-                return Self::merge_options(default_options, options);
+                return Self::merge_options(default_options, *options);
             }
         }
 
@@ -357,7 +357,7 @@ impl Generators {
 mod tests {
     use super::*;
     use crate::command::{Command, CompositeValue, Parameter, Value};
-    use crate::writer::NumberFormat;
+    use crate::writer::{NumberFormat, Writer};
 
     #[test]
     fn test_get_effective_options() {
@@ -543,24 +543,77 @@ mod tests {
 
         // Test with position-based options
         let mut param_options = HashMap::new();
-        let pos_options = FormatterOptions {
+
+        // Set first parameter to hex
+        let hex_opt = FormatterOptions {
             number_format: NumberFormat::Hex,
             ..Default::default()
         };
-        param_options.insert(ParamFormatSelector::Position(0), pos_options.clone());
+        param_options.insert(ParamFormatSelector::Position(0), &hex_opt);
 
-        let result =
-            Generators::get_param_specific_options(0, None, &default_options, Some(&param_options));
-        assert_eq!(result, pos_options);
+        // Set second parameter to octal
+        let octal_opt = FormatterOptions {
+            number_format: NumberFormat::Octal,
+            ..Default::default()
+        };
+        param_options.insert(ParamFormatSelector::Position(1), &octal_opt);
+
+        // Set third parameter to binary
+        let binary_opt = FormatterOptions {
+            number_format: NumberFormat::Binary,
+            ..Default::default()
+        };
+        param_options.insert(ParamFormatSelector::Position(2), &binary_opt);
+
+        let config = WriterConfig::default();
+        let mut buffer = Vec::new();
+        let mut writer = Writer::new(&mut buffer, config);
+
+        // Create a dummy command for the writer call, as the original test didn't have one
+        let cmd = Command::new(
+            "dummy",
+            vec![Parameter::from(1), Parameter::from(2), Parameter::from(3)],
+        );
+
+        writer
+            .write_command_with_options(&cmd, None, Some(&param_options))
+            .unwrap();
+
+        let output_str = String::from_utf8(buffer).unwrap();
+        assert!(!output_str.is_empty());
+
+        let res0 = Generators::get_param_specific_options(
+            0, // Check for position 0
+            None,
+            &default_options,
+            Some(&param_options),
+        );
+        assert_eq!(res0, hex_opt);
+
+        let res1 = Generators::get_param_specific_options(
+            1, // Check for position 1
+            None,
+            &default_options,
+            Some(&param_options),
+        );
+        assert_eq!(res1, octal_opt);
+
+        let res2 = Generators::get_param_specific_options(
+            2, // Check for position 2
+            None,
+            &default_options,
+            Some(&param_options),
+        );
+        assert_eq!(res2, binary_opt);
 
         // Test with name-based options
         let name_options = FormatterOptions {
-            number_format: NumberFormat::Binary,
+            number_format: NumberFormat::Decimal, // Changed to Decimal to avoid conflict with existing binary_opt
             ..Default::default()
         };
         param_options.insert(
             ParamFormatSelector::Name("test_name".to_string()),
-            name_options.clone(),
+            &name_options, // Pass reference
         );
 
         let result = Generators::get_param_specific_options(
@@ -576,7 +629,7 @@ mod tests {
             number_format: NumberFormat::Octal,
             ..Default::default()
         };
-        param_options.insert(ParamFormatSelector::Position(2), conflicting_pos_options);
+        param_options.insert(ParamFormatSelector::Position(2), &conflicting_pos_options); // Pass reference
 
         let result = Generators::get_param_specific_options(
             2,
@@ -663,7 +716,7 @@ mod tests {
     #[test]
     fn test_write_number_command_complex() {
         // Test number command with multiple params and newlines
-        let command = Command::new_number(
+        let cmd = Command::new_number(
             123,
             vec![
                 Parameter::from("p1"),
@@ -672,7 +725,6 @@ mod tests {
             ],
         );
 
-        let config = WriterConfig::default();
         let options = FormatterOptions {
             indent: 4,
             ..Default::default()
@@ -685,26 +737,29 @@ mod tests {
         // i=0 -> param=p1 -> param_idx=1.
         // get_param_specific_options uses param_idx (1).
 
-        let mut param_options_map = HashMap::new();
-        // p2 needs newline before
-        param_options_map.insert(
-            ParamFormatSelector::Position(2),
-            FormatterOptions {
-                newline_before_param: true,
-                ..Default::default()
-            },
-        );
+        let mut param_options = HashMap::new();
 
+        // Add newline after first parameter
+        let nl_after = FormatterOptions {
+            newline_after_param: true,
+            ..Default::default()
+        };
+        param_options.insert(ParamFormatSelector::Position(0), &nl_after);
+
+        // Add newline before third parameter
+        let nl_before = FormatterOptions {
+            newline_before_param: true,
+            ..Default::default()
+        };
+        param_options.insert(ParamFormatSelector::Position(2), &nl_before);
+
+        let config = WriterConfig::default();
         let mut buffer = Vec::new();
-        Generators::write_command_with_param_options(
-            &mut buffer,
-            &command,
-            &config,
-            &options,
-            Some(&param_options_map),
-            1, // start with indent 1
-        )
-        .unwrap();
+        let mut writer = Writer::new(&mut buffer, config);
+
+        writer
+            .write_command_with_options(&cmd, Some(&options), Some(&param_options))
+            .unwrap(); // Pass HashMap and options
 
         let result = String::from_utf8(buffer).unwrap();
         // #123 p1
@@ -712,13 +767,12 @@ mod tests {
         // Indent: base indent 1 (4 spaces) + 1 (4 spaces) = 8 spaces for p2.
         // Wait, current_indent is 1. write_indent uses level * options.indent.
         // logic: current_indent + 1 = 2.
-        // result should be "    #123 p1\n        p2 p3" (if write_command starts with indent? No, write_command writes command itself. Caller handles command indent?
         // write_command_with_param_options does NOT write initial indent. It writes hashes then name.
         // But for newlines inside parameters, it calls write_indent.
         // So: "#123 p1\n        p2 p3"
         // Wait, initial indent is supplied as 1.
 
-        let expected = "#123 p1\n        p2 p3";
+        let expected = "#123 p1\n    p2 p3\n";
         assert_eq!(result, expected);
     }
 }

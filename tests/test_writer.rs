@@ -85,19 +85,25 @@ fn test_writer_parser_param_specific() {
     let mut param_options = HashMap::new();
 
     // First parameter in hex
-    let mut hex_options = FormatterOptions::default();
-    hex_options.number_format = NumberFormat::Hex;
-    param_options.insert(ParamFormatSelector::Position(0), hex_options);
+    let hex_options = FormatterOptions {
+        number_format: NumberFormat::Hex,
+        ..Default::default()
+    };
+    param_options.insert(ParamFormatSelector::Position(0), &hex_options);
 
     // Second parameter in binary with space before
-    let mut bin_options = FormatterOptions::default();
-    bin_options.number_format = NumberFormat::Binary;
-    param_options.insert(ParamFormatSelector::Position(1), bin_options);
+    let bin_options = FormatterOptions {
+        number_format: NumberFormat::Binary,
+        ..Default::default()
+    };
+    param_options.insert(ParamFormatSelector::Position(1), &bin_options);
 
     // Third parameter in octal
-    let mut oct_options = FormatterOptions::default();
-    oct_options.number_format = NumberFormat::Octal;
-    param_options.insert(ParamFormatSelector::Position(2), oct_options);
+    let oct_options = FormatterOptions {
+        number_format: NumberFormat::Octal,
+        ..Default::default()
+    };
+    param_options.insert(ParamFormatSelector::Position(2), &oct_options);
 
     writer
         .write_command_with_options(&command, None, Some(&param_options))
@@ -147,12 +153,14 @@ fn test_writer_parser_newlines() {
     // Set newline after each parameter
     let mut param_options = HashMap::new();
 
-    let mut newline_options = FormatterOptions::default();
-    newline_options.newline_after_param = true;
+    let newline_options = FormatterOptions {
+        newline_after_param: true,
+        ..Default::default()
+    };
 
-    param_options.insert(ParamFormatSelector::Position(0), newline_options.clone());
-    param_options.insert(ParamFormatSelector::Position(1), newline_options.clone());
-    param_options.insert(ParamFormatSelector::Position(2), newline_options);
+    param_options.insert(ParamFormatSelector::Position(0), &newline_options);
+    param_options.insert(ParamFormatSelector::Position(1), &newline_options);
+    param_options.insert(ParamFormatSelector::Position(2), &newline_options);
 
     writer
         .write_command_with_options(&command, None, Some(&param_options))
