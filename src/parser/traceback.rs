@@ -168,8 +168,8 @@ impl TracebackEntry {
         TracebackEntry {
             lineno: line_base + rel_line - 1,
             column_range: (
-                rel_column + column_offset,
-                rel_column + error.input.len() + column_offset,
+                rel_column + if rel_line == 1 { column_offset } else { 0 },
+                rel_column + error.input.len() + if rel_line == 1 { column_offset } else { 0 },
             ),
             context,
             children,
@@ -219,13 +219,13 @@ impl fmt::Display for TracebackEntry {
 }
 
 /// Helper structure for efficient line number lookups
-struct LineIndex {
+pub(crate) struct LineIndex {
     /// Start offsets of newlines
-    newlines: Vec<usize>,
+    pub(crate) newlines: Vec<usize>,
 }
 
 impl LineIndex {
-    fn new(input: &str) -> Self {
+    pub(crate) fn new(input: &str) -> Self {
         let newlines = input
             .bytes()
             .enumerate()
@@ -236,21 +236,27 @@ impl LineIndex {
 
     /// Get valid (line_number, column_number) for a substring
     /// line_number is 1-based, column_number is 1-based
-    fn get_location<I: core::ops::Deref<Target = str>>(
+    pub(crate) fn get_location<I: core::ops::Deref<Target = str>>(
         &self,
         full_input: &I,
         substring: &I,
     ) -> (usize, usize) {
         let offset = full_input.offset(substring);
+        self.get_location_at(offset)
+    }
 
-        if full_input.is_empty() {
+    /// Get valid (line_number, column_number) for a byte offset
+    /// line_number is 1-based, column_number is 1-based
+    pub(crate) fn get_location_at(&self, offset: usize) -> (usize, usize) {
+        if offset == 0 {
             return (1, 1);
         }
 
         let line_number = match self.newlines.binary_search(&offset) {
             Ok(idx) => idx + 1,
             Err(idx) => idx + 1,
-        };
+        }
+        .max(1);
 
         // Determine column
         let line_start = if line_number == 1 {

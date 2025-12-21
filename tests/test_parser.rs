@@ -180,7 +180,7 @@ fn test_parse_example_with_syntax_error() {
     let err = result.unwrap_err();
     println!("{}", err);
 
-    let text = "#error e(\n    1, 2 3\n)";
+    let text = "#error\\\ne(\\\n    1, 2 3\\\n)";
     let input = parser::StringInputSource::new(text);
     let mut parser = parser::Parser::new(input, parser::ParserConfig::default());
     let result = parser.next_command();
