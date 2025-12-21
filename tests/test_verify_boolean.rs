@@ -1,5 +1,5 @@
 use koicore::{
-    command::{Command, Parameter, Value},
+    command::{Parameter, Value},
     parser::{Parser, ParserConfig, StringInputSource},
     writer::{Writer, WriterConfig},
 };

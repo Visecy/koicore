@@ -233,8 +233,7 @@ impl<T: TextInputSource> Parser<T> {
                 if self.config.skip_annotations {
                     continue;
                 }
-                let annotation_text = trimmed[hash_count..].trim_start();
-                break Ok(Some(Command::new_annotation(annotation_text)));
+                break Ok(Some(Command::new_annotation(trimmed)));
             } else {
                 // hash_count == self.config.command_threshold
                 let column = line_text.offset(trimmed) + hash_count;
