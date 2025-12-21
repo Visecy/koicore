@@ -36,11 +36,19 @@
 
 use std::{collections::HashMap, fmt};
 
+#[cfg(feature = "serde")]
+use serde::{
+    Deserialize, Deserializer, Serialize, Serializer,
+    de::{self, Visitor},
+};
+
 /// Basic value types supported by KoiLang
 ///
 /// Represents the fundamental data types that can appear as command parameters
 /// or within composite values.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(untagged))]
 pub enum Value {
     /// Integer values (64-bit signed)
     Int(i64),
@@ -232,6 +240,7 @@ impl fmt::Display for Parameter {
 /// Commands are the fundamental units of KoiLang files, consisting of a name
 /// and zero or more parameters. They can represent actions, text content, or annotations.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Command {
     /// The command name (e.g., "character", "background", "@text")
     pub name: String,
@@ -470,5 +479,193 @@ mod tests {
         // Test Single display (already covered but for completeness)
         let single = CompositeValue::Single(Value::Int(42));
         assert_eq!(format!("{}", single), "42");
+    }
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for CompositeValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            CompositeValue::Single(v) => v.serialize(serializer),
+            CompositeValue::List(l) => l.serialize(serializer),
+            CompositeValue::Dict(d) => {
+                use serde::ser::SerializeMap;
+                let mut map = serializer.serialize_map(Some(d.len()))?;
+                for (k, v) in d {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            }
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for CompositeValue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct CompositeValueVisitor;
+
+        impl<'de> Visitor<'de> for CompositeValueVisitor {
+            type Value = CompositeValue;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a value, list, or dictionary")
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(CompositeValue::Single(Value::Int(v)))
+            }
+
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(CompositeValue::Single(Value::Float(v)))
+            }
+
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(CompositeValue::Single(Value::Bool(v)))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(CompositeValue::Single(Value::String(v.to_string())))
+            }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(CompositeValue::Single(Value::String(v)))
+            }
+
+            fn visit_seq<V>(self, mut visitor: V) -> Result<Self::Value, V::Error>
+            where
+                V: de::SeqAccess<'de>,
+            {
+                let mut values = Vec::new();
+                while let Some(value) = visitor.next_element()? {
+                    values.push(value);
+                }
+                Ok(CompositeValue::List(values))
+            }
+
+            fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+            where
+                M: de::MapAccess<'de>,
+            {
+                let mut entries = Vec::new();
+                while let Some((key, value)) = access.next_entry()? {
+                    entries.push((key, value));
+                }
+                Ok(CompositeValue::Dict(entries))
+            }
+        }
+
+        deserializer.deserialize_any(CompositeValueVisitor)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for Parameter {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Parameter::Basic(v) => v.serialize(serializer),
+            Parameter::Composite(k, v) => {
+                use serde::ser::SerializeMap;
+                let mut map = serializer.serialize_map(Some(1))?;
+                map.serialize_entry(k, v)?;
+                map.end()
+            }
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Parameter {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct ParameterVisitor;
+
+        impl<'de> Visitor<'de> for ParameterVisitor {
+            type Value = Parameter;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a basic value or a named composite parameter")
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Parameter::Basic(Value::Int(v)))
+            }
+
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Parameter::Basic(Value::Float(v)))
+            }
+
+            fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Parameter::Basic(Value::Bool(v)))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Parameter::Basic(Value::String(v.to_string())))
+            }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(Parameter::Basic(Value::String(v)))
+            }
+
+            fn visit_map<M>(self, mut access: M) -> Result<Self::Value, M::Error>
+            where
+                M: de::MapAccess<'de>,
+            {
+                if let Some((key, value)) = access.next_entry()? {
+                    // Ensure only one entry for Composite parameter
+                    if access.next_entry::<String, CompositeValue>()?.is_some() {
+                        return Err(de::Error::custom(
+                            "Composite parameter map must have exactly one entry",
+                        ));
+                    }
+                    Ok(Parameter::Composite(key, value))
+                } else {
+                    Err(de::Error::custom("Composite parameter map cannot be empty"))
+                }
+            }
+        }
+
+        deserializer.deserialize_any(ParameterVisitor)
     }
 }

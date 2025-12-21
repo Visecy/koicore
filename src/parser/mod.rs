@@ -33,7 +33,7 @@ pub mod traceback;
 
 use super::command::Command;
 pub use error::{ErrorInfo, ParseError, ParseResult};
-pub use input::{FileInputSource, StringInputSource, TextInputSource};
+pub use input::{BufReadWrapper, FileInputSource, StringInputSource, TextInputSource};
 use nom::Offset;
 pub use traceback::TracebackEntry;
 
@@ -233,7 +233,8 @@ impl<T: TextInputSource> Parser<T> {
                 if self.config.skip_annotations {
                     continue;
                 }
-                break Ok(Some(Command::new_annotation(trimmed)));
+                let annotation_text = trimmed[hash_count..].trim_start();
+                break Ok(Some(Command::new_annotation(annotation_text)));
             } else {
                 // hash_count == self.config.command_threshold
                 let column = line_text.offset(trimmed) + hash_count;
