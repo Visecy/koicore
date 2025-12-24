@@ -1,22 +1,72 @@
-# koicore
+# KoiLang VSCode Extension
 
-Core KoiLang language module providing basic language features.
-
-[![License](https://img.shields.io/github/license/Visecy/koicore.svg)](LICENSE)
-[![Crates.io](https://img.shields.io/crates/v/koicore.svg)](https://crates.io/crates/koicore)
-[![Documentation](https://docs.rs/koicore/badge.svg)](https://docs.rs/koicore)
-
-**English** | [中文](./README_cn.md)
-
-## Overview
-
-KoiLang is a markup language designed for narrative content, particularly suited for visual novels, interactive fiction, and dialogue-driven applications. The `koicore` crate provides the fundamental parsing and data structures needed to work with KoiLang files.
-
-The core idea of KoiLang is to separate data and instructions. KoiLang files contain the data (commands and text), while your application provides the instructions (how to handle those commands). This makes KoiLang files easy to read and write for humans, while being powerful enough for complex applications.
+This extension provides syntax highlighting for KoiLang files (.koi) in Visual Studio Code.
 
 ## Features
 
-- **Streaming Parser**: Process files of any size with constant memory usage
+- Syntax highlighting for KoiLang commands and arguments
+- Support for various data types including strings, numbers, lists, and dictionaries
+- Comment highlighting
+- Text content highlighting
+
+## Supported Syntax
+
+### Commands
+Commands start with `#` followed by a command name and optional arguments:
+
+```
+#character Alice "Hello, world!"
+#background forest
+```
+
+### Arguments
+KoiLang supports various argument types:
+
+- **Strings**: `"A string with content"`
+- **Numbers**: `123`, `1.23`, `0b101`, `0x6CF`
+- **Literals**: `identifier`, `__name__`
+- **Named arguments**: `name(value)`
+- **Lists**: `name(item1, item2, item3)`
+- **Dictionaries**: `name(key1: value1, key2: value2)`
+
+### Comments
+Lines starting with `##` are treated as comments:
+
+```
+## This is a comment
+```
+
+### Text Content
+Plain text without the `#` prefix is treated as content:
+
+```
+This is regular text content.
+It can span multiple lines.
+```
+
+## File Extension
+
+This extension supports files with the `.koi` extension.
+
+## Example
+
+```
+## Character definitions
+#character Alice "Alice" color(255, 100, 100)
+#character Bob "Bob" color(100, 255, 100)
+
+## Background
+#background forest
+
+## Dialog
+Alice "Hello, Bob!"
+Bob "Hi, Alice! How are you today?"
+Alice "I'm doing well, thank you for asking."
+
+## Actions
+#action walk pos(100, 200)
+#draw Line 2 pos0(x: 0, y: 0) pos1(x: 16, y: 16) thickness(2) color(255, 255, 255)
+```
 - **Multiple Input Sources**: Parse from strings, files, or custom input sources
 - **Encoding Support**: Handle various text encodings (UTF-8, GBK, etc.) through `DecodeBufReader`
 - **Comprehensive Error Handling**: Detailed error messages with source locations and context
