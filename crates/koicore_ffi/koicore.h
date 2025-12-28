@@ -133,6 +133,20 @@ typedef struct KoiParserConfig {
    * to special number commands. If set to false, they will be treated as regular commands.
    */
   bool convert_number_command;
+  /**
+   * Whether to preserve indentation in text and annotation lines
+   *
+   * If set to true, leading whitespace (indentation) will be preserved in text and
+   * annotation content. If set to false, leading whitespace will be trimmed.
+   */
+  bool preserve_indent;
+  /**
+   * Whether to preserve empty lines as text commands
+   *
+   * If set to true, empty lines will be preserved and returned as empty text commands.
+   * If set to false, empty lines will be skipped.
+   */
+  bool preserve_empty_lines;
 } KoiParserConfig;
 
 /**

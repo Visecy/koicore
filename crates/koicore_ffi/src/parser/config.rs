@@ -19,6 +19,16 @@ pub struct KoiParserConfig {
     /// If set to true, commands with names that are valid integers will be converted
     /// to special number commands. If set to false, they will be treated as regular commands.
     pub convert_number_command: bool,
+    /// Whether to preserve indentation in text and annotation lines
+    ///
+    /// If set to true, leading whitespace (indentation) will be preserved in text and
+    /// annotation content. If set to false, leading whitespace will be trimmed.
+    pub preserve_indent: bool,
+    /// Whether to preserve empty lines as text commands
+    ///
+    /// If set to true, empty lines will be preserved and returned as empty text commands.
+    /// If set to false, empty lines will be skipped.
+    pub preserve_empty_lines: bool,
 }
 
 impl From<&KoiParserConfig> for ParserConfig {
@@ -27,6 +37,8 @@ impl From<&KoiParserConfig> for ParserConfig {
             command_threshold: config.command_threshold,
             skip_annotations: config.skip_annotations,
             convert_number_command: config.convert_number_command,
+            preserve_indent: config.preserve_indent,
+            preserve_empty_lines: config.preserve_empty_lines,
         }
     }
 }
@@ -55,6 +67,8 @@ pub unsafe extern "C" fn KoiParserConfig_Init(config: *mut KoiParserConfig) {
             command_threshold: 1,
             skip_annotations: false,
             convert_number_command: true,
+            preserve_empty_lines: true,
+            preserve_indent: true,
         }
     };
 }

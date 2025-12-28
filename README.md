@@ -162,6 +162,39 @@ The format of a single command:
 
 Each command can have multiple parameters of different types, allowing for flexible and expressive command structures.
 
+### Command Threshold
+The `command_threshold` parameter determines how KoiLang identifies line types based on the number of `#` characters:
+
+- Lines with `< threshold` # characters → Text content
+- Lines with `= threshold` # characters → Command
+- Lines with `> threshold` # characters → Annotation
+
+```text
+#single_hash_command "This is a command"
+##double_hash_command "This is a command when threshold=2"
+###triple_hash_command "This is a command when threshold=3"
+
+Regular text content here.
+```
+
+#### Threshold Examples
+
+| Threshold | `#text` | `##text` | `###text` | `####text` | no-prefix |
+|-----------|---------|----------|-----------|------------|-----------|
+| 0 | Annotation | Annotation | Annotation | Annotation | Command |
+| 1 (default) | Command | Annotation | Annotation | Annotation | Text |
+| 2 | Text | Command | Annotation | Annotation | Text |
+| 3 | Text | Text | Command | Annotation | Text |
+
+When `threshold=0`, lines without a `#` prefix are treated as commands, and all lines with `#` prefix are treated as annotations.
+
+#### Use Cases
+
+- **threshold=1**: Standard KoiLang syntax (default)
+- **threshold=2**: Allows embedding KoiLang in languages where `#` has special meaning (single `#` prefix treated as text)
+- **threshold=3**: Strict command parsing for complex scripts
+- **threshold=0**: Special case - all non-hash lines are commands, hash lines are annotations
+
 ## Core Components
 
 ### Command Structure
