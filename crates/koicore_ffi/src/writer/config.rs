@@ -4,41 +4,6 @@ use std::collections::HashMap;
 use std::ffi::{CStr, c_char};
 use std::ptr;
 
-/// Number format for numeric values
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub enum KoiNumberFormat {
-    Unknown = 0,
-    Decimal = 1,
-    Hex = 2,
-    Octal = 3,
-    Binary = 4,
-}
-
-impl From<KoiNumberFormat> for NumberFormat {
-    fn from(format: KoiNumberFormat) -> Self {
-        match format {
-            KoiNumberFormat::Unknown => NumberFormat::Unknown,
-            KoiNumberFormat::Decimal => NumberFormat::Decimal,
-            KoiNumberFormat::Hex => NumberFormat::Hex,
-            KoiNumberFormat::Octal => NumberFormat::Octal,
-            KoiNumberFormat::Binary => NumberFormat::Binary,
-        }
-    }
-}
-
-impl From<NumberFormat> for KoiNumberFormat {
-    fn from(format: NumberFormat) -> Self {
-        match format {
-            NumberFormat::Unknown => KoiNumberFormat::Unknown,
-            NumberFormat::Decimal => KoiNumberFormat::Decimal,
-            NumberFormat::Hex => KoiNumberFormat::Hex,
-            NumberFormat::Octal => KoiNumberFormat::Octal,
-            NumberFormat::Binary => KoiNumberFormat::Binary,
-        }
-    }
-}
-
 /// Transparent configuration struct for FFI
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -49,7 +14,7 @@ pub struct KoiFormatterOptions {
     pub newline_after: bool,
     pub compact: bool,
     pub force_quotes_for_vars: bool,
-    pub number_format: KoiNumberFormat,
+    pub number_format: *const c_char,
     pub newline_before_param: bool,
     pub newline_after_param: bool,
     pub should_override: bool,
@@ -64,7 +29,12 @@ impl From<KoiFormatterOptions> for FormatterOptions {
             newline_after: opt.newline_after,
             compact: opt.compact,
             force_quotes_for_vars: opt.force_quotes_for_vars,
-            number_format: opt.number_format.into(),
+            number_format: if opt.number_format.is_null() {
+                NumberFormat::Unknown
+            } else {
+                let number_format = unsafe { CStr::from_ptr(opt.number_format) };
+                NumberFormat::from(number_format.to_string_lossy().to_string())
+            },
             newline_before_param: opt.newline_before_param,
             newline_after_param: opt.newline_after_param,
             should_override: opt.should_override,
@@ -81,7 +51,7 @@ impl From<FormatterOptions> for KoiFormatterOptions {
             newline_after: opt.newline_after,
             compact: opt.compact,
             force_quotes_for_vars: opt.force_quotes_for_vars,
-            number_format: opt.number_format.into(),
+            number_format: std::ptr::null(),
             newline_before_param: opt.newline_before_param,
             newline_after_param: opt.newline_after_param,
             should_override: opt.should_override,

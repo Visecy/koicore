@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 /// Number format options for numeric values
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum NumberFormat {
     /// Unknown format (default)
     #[default]
@@ -19,6 +19,33 @@ pub enum NumberFormat {
     Octal,
     /// Binary format
     Binary,
+    /// Custom format string (e.g., "#08x", "016b", "03o")
+    /// The prefix will be automatically added when formatting.
+    Custom(String),
+}
+
+impl From<String> for NumberFormat {
+    fn from(s: String) -> Self {
+        Self::Custom(s)
+    }
+}
+
+impl ToString for NumberFormat {
+    fn to_string(&self) -> String {
+        match self {
+            NumberFormat::Hex => "X".to_string(),
+            NumberFormat::Octal => "o".to_string(),
+            NumberFormat::Binary => "b".to_string(),
+            NumberFormat::Custom(fmt) => {
+                if !fmt.starts_with("#") {
+                    fmt.clone()
+                } else {
+                    fmt[1..].to_string()
+                }
+            }
+            _ => "".to_string(),
+        }
+    }
 }
 
 /// Selector for parameter-specific formatting options

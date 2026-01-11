@@ -32,17 +32,6 @@ typedef enum KoiFileInputEncodingStrategy {
 } KoiFileInputEncodingStrategy;
 
 /**
- * Number format for numeric values
- */
-typedef enum KoiNumberFormat {
-  Unknown = 0,
-  Decimal = 1,
-  Hex = 2,
-  Octal = 3,
-  Binary = 4,
-} KoiNumberFormat;
-
-/**
  * Opaque handle for KoiLang input sources
  *
  * This structure represents an input source that provides text to the parser.
@@ -234,7 +223,7 @@ typedef struct KoiFormatterOptions {
   bool newline_after;
   bool compact;
   bool force_quotes_for_vars;
-  enum KoiNumberFormat number_format;
+  const char *number_format;
   bool newline_before_param;
   bool newline_after_param;
   bool should_override;

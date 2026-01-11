@@ -3,7 +3,7 @@
 //! This module contains utilities for formatting different types of values
 //! and parameters in KoiLang text generation.
 
-use super::config::{FormatterOptions, NumberFormat};
+use super::config::{FormatterOptions};
 use crate::command::{CompositeValue, Parameter, Value};
 
 /// Formatting utilities for KoiLang values
@@ -17,12 +17,43 @@ impl Formatters {
     /// * `num` - The integer value to format
     /// * `options` - Formatting options determining the base (decimal, hex, etc.)
     pub fn format_number(num: &i64, options: &FormatterOptions) -> String {
-        match options.number_format {
-            NumberFormat::Decimal | NumberFormat::Unknown => num.to_string(),
-            NumberFormat::Hex => format!("0x{:x}", num),
-            NumberFormat::Octal => format!("0o{:o}", num),
-            NumberFormat::Binary => format!("0b{:b}", num),
+        let fmt = options.number_format.to_string();
+        if fmt.is_empty() {
+            return num.to_string();
         }
+        let (prefix, radix) = match fmt.chars().last() {
+            Some('x') | Some('X') => ("0x", 16),
+            Some('o') => ("0o", 8),
+            Some('b') => ("0b", 2),
+            _ => return num.to_string(),
+        };
+        let spec = &fmt[..fmt.len() - 1];
+        let target_width: usize = if spec.starts_with('0') && spec.len() > 1 {
+            spec[1..].parse().ok().unwrap_or(0)
+        } else {
+            0
+        };
+        let unprefixed = match radix {
+            16 => format!("{:x}", num),
+            8 => format!("{:o}", num),
+            2 => format!("{:b}", num),
+            _ => return num.to_string(),
+        };
+        let content = if target_width > 0 {
+            let pad_len = if target_width > prefix.len() {
+                target_width - prefix.len()
+            } else {
+                0
+            };
+            if pad_len > unprefixed.len() {
+                format!("{:>width$}", unprefixed, width = pad_len)
+            } else {
+                unprefixed
+            }
+        } else {
+            unprefixed
+        };
+        format!("{}{}", prefix, content)
     }
 
     /// Check if a string matches variable naming rules.
@@ -186,7 +217,7 @@ impl Formatters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::{CompositeValue, Parameter, Value};
+    use crate::{command::{CompositeValue, Parameter, Value}, writer::NumberFormat};
 
     #[test]
     fn test_format_number() {

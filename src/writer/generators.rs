@@ -54,7 +54,13 @@ impl Generators {
                 // Annotation command - write with extra # characters
                 if let Some(Parameter::Basic(Value::String(text))) = command.params.first() {
                     let hashes = "#".repeat(config.command_threshold + 1);
-                    write!(writer, "{} {}", hashes, text)?;
+                    if text.trim_start().starts_with(&hashes) {
+                        // If text already has enough #, just write it
+                        write!(writer, "{}", text)?;
+                    } else {
+                        // Otherwise, add extra #
+                        write!(writer, "{} {}", hashes, text)?;
+                    }
                 }
             }
             "@number" => {
@@ -277,7 +283,11 @@ impl Generators {
             merged.force_quotes_for_vars = override_opt.force_quotes_for_vars;
         }
         if override_opt.number_format != NumberFormat::Unknown {
-            merged.number_format = override_opt.number_format;
+            merged.number_format = override_opt.number_format.clone();
+        } else if let NumberFormat::Custom(ref fmt) = merged.number_format {
+            if fmt.is_empty() {
+                merged.number_format = NumberFormat::Decimal;
+            }
         }
         if override_opt.newline_before_param {
             merged.newline_before_param = override_opt.newline_before_param;
