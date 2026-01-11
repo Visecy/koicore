@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::io::Write;
 
 // Re-export configuration types
-pub use self::config::{FormatterOptions, NumberFormat, ParamFormatSelector, WriterConfig};
+pub use self::config::{FloatFormat, FormatterOptions, NumberFormat, ParamFormatSelector, WriterConfig};
 
 // Internal modules
 mod config;

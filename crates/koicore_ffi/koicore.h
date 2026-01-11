@@ -224,6 +224,7 @@ typedef struct KoiFormatterOptions {
   bool compact;
   bool force_quotes_for_vars;
   const char *number_format;
+  const char *float_format;
   bool newline_before_param;
   bool newline_after_param;
   bool should_override;

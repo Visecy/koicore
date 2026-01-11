@@ -48,6 +48,17 @@ impl ToString for NumberFormat {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq)]
+pub enum FloatFormat {
+    #[default]
+    Default,
+    Fixed(Option<usize>),
+    Scientific,
+    General(Option<usize>),
+    Custom(String),
+}
+
+
 /// Selector for parameter-specific formatting options
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ParamFormatSelector {
@@ -74,6 +85,8 @@ pub struct FormatterOptions {
     pub force_quotes_for_vars: bool,
     /// Format to use for numeric values
     pub number_format: NumberFormat,
+    /// Format to use for floating-point values
+    pub float_format: FloatFormat,
     /// Whether to add a newline before this specific parameter
     pub newline_before_param: bool,
     /// Whether to add a newline after this specific parameter

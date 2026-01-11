@@ -469,6 +469,18 @@ impl<T: TextInputSource> AsMut<T> for Parser<T> {
     }
 }
 
+impl<T: TextInputSource> Iterator for Parser<T> {
+    type Item = ParseResult<Command>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.next_command() {
+            Ok(Some(cmd)) => Some(Ok(cmd)),
+            Ok(None) => None,
+            Err(e) => Some(Err(e)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

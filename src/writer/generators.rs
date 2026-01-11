@@ -4,7 +4,7 @@
 //! commands, including handling parameter-specific formatting options and
 //! intelligent newline management.
 
-use super::config::{FormatterOptions, ParamFormatSelector, WriterConfig};
+use super::config::{FloatFormat, FormatterOptions, ParamFormatSelector, WriterConfig};
 use super::formatters::Formatters;
 use crate::command::{Command, Parameter, Value};
 use crate::writer::NumberFormat;
@@ -288,6 +288,9 @@ impl Generators {
             if fmt.is_empty() {
                 merged.number_format = NumberFormat::Decimal;
             }
+        }
+        if override_opt.float_format != FloatFormat::Default {
+            merged.float_format = override_opt.float_format.clone();
         }
         if override_opt.newline_before_param {
             merged.newline_before_param = override_opt.newline_before_param;
