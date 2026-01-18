@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="koicore_header.png" width="800" alt="koicore banner">
+</div>
+
 # koicore
 
 Core KoiLang language module providing basic language features.
@@ -31,7 +35,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-koicore = "0.2.1"
+koicore = "0.2.2"
 ```
 
 ## Building from Source

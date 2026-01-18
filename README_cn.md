@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="koicore_header.png" width="800" alt="koicore banner">
+</div>
+
 # koicore
 
 KoiLang 语言核心模块，提供基础语言功能。
@@ -31,7 +35,7 @@ KoiLang 的核心理念是分离数据和指令。KoiLang 文件包含数据（�
 
 ```toml
 [dependencies]
-koicore = "0.2.1"
+koicore = "0.2.2"
 ```
 
 ## 从源码构建
