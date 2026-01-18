@@ -3,7 +3,7 @@
 //! This module contains utilities for formatting different types of values
 //! and parameters in KoiLang text generation.
 
-use super::config::{FormatterOptions, NumberFormat};
+use super::config::{FloatFormat, FormatterOptions};
 use crate::command::{CompositeValue, Parameter, Value};
 
 /// Formatting utilities for KoiLang values
@@ -17,11 +17,121 @@ impl Formatters {
     /// * `num` - The integer value to format
     /// * `options` - Formatting options determining the base (decimal, hex, etc.)
     pub fn format_number(num: &i64, options: &FormatterOptions) -> String {
-        match options.number_format {
-            NumberFormat::Decimal | NumberFormat::Unknown => num.to_string(),
-            NumberFormat::Hex => format!("0x{:x}", num),
-            NumberFormat::Octal => format!("0o{:o}", num),
-            NumberFormat::Binary => format!("0b{:b}", num),
+        let fmt = options.number_format.to_string();
+        if fmt.is_empty() {
+            return num.to_string();
+        }
+        let (prefix, radix) = match fmt.chars().last() {
+            Some('x') | Some('X') => ("0x", 16),
+            Some('o') => ("0o", 8),
+            Some('b') => ("0b", 2),
+            _ => return num.to_string(),
+        };
+        let spec = &fmt[..fmt.len() - 1];
+        let target_width: usize = if spec.starts_with('0') && spec.len() > 1 {
+            spec[1..].parse().ok().unwrap_or(0)
+        } else {
+            0
+        };
+        let unprefixed = match radix {
+            16 => format!("{:x}", num),
+            8 => format!("{:o}", num),
+            2 => format!("{:b}", num),
+            _ => return num.to_string(),
+        };
+        let content = if target_width > 0 {
+            let pad_len = if target_width > prefix.len() {
+                target_width - prefix.len()
+            } else {
+                0
+            };
+            if pad_len > unprefixed.len() {
+                format!("{:>width$}", unprefixed, width = pad_len)
+            } else {
+                unprefixed
+            }
+        } else {
+            unprefixed
+        };
+        format!("{}{}", prefix, content)
+    }
+
+    pub fn format_float(f: &f64, options: &FormatterOptions) -> String {
+        match &options.float_format {
+            FloatFormat::Default => f.to_string(),
+            FloatFormat::Fixed(precision) => {
+                let p = precision.unwrap_or(6);
+                format!("{:.p$}", f, p = p)
+            }
+            FloatFormat::Scientific => format!("{:e}", f),
+            FloatFormat::General(precision) => {
+                let p = precision.unwrap_or(6);
+                format!("{:.*}", p, f)
+            }
+            FloatFormat::Custom(fmt) => Self::apply_custom_float_format(f, fmt),
+        }
+    }
+
+    fn apply_custom_float_format(f: &f64, fmt: &str) -> String {
+        if fmt.is_empty() {
+            return f.to_string();
+        }
+
+        let mut precision = None;
+        let mut specifier = 'f';
+        let mut prefix = String::new();
+        let mut chars = fmt.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '.' {
+                let mut prec_str = String::new();
+                while let Some(&next_c) = chars.peek() {
+                    if next_c.is_ascii_digit() {
+                        prec_str.push(chars.next().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+                if !prec_str.is_empty() {
+                    precision = Some(prec_str.parse::<usize>().unwrap_or(6));
+                } else {
+                    precision = Some(6);
+                }
+            } else if c == 'e' || c == 'E' {
+                specifier = c;
+                break;
+            } else if c == '+' || c == ' ' || c == '#' || c == '0' {
+                prefix.push(c);
+            }
+        }
+
+        let result = match specifier {
+            'e' | 'E' => {
+                if let Some(p) = precision {
+                    format!("{:.1$e}", f, p)
+                } else {
+                    format!("{:e}", f)
+                }
+            }
+            'f' | _ => {
+                if let Some(p) = precision {
+                    format!("{:.1$}", f, p)
+                } else {
+                    format!("{}", f)
+                }
+            }
+        };
+
+        if prefix.is_empty() {
+            result
+        } else {
+            let sign = if result.starts_with('-') {
+                "-"
+            } else {
+                ""
+            };
+            let abs_result = result.trim_start_matches('-');
+            format!("{}{}{}", sign, prefix, abs_result)
         }
     }
 
@@ -153,7 +263,7 @@ impl Formatters {
     pub fn format_value(value: &Value, options: &FormatterOptions) -> String {
         match value {
             Value::Int(i) => Self::format_number(i, options),
-            Value::Float(f) => f.to_string(),
+            Value::Float(f) => Self::format_float(f, options),
             Value::Bool(b) => b.to_string(),
             Value::String(s) => Self::format_string(s, options),
         }
@@ -186,7 +296,7 @@ impl Formatters {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::command::{CompositeValue, Parameter, Value};
+    use crate::{command::{CompositeValue, Parameter, Value}, writer::NumberFormat};
 
     #[test]
     fn test_format_number() {
@@ -404,5 +514,96 @@ mod tests {
         };
         let result = Formatters::format_value(&Value::Int(7), &bin_options);
         assert_eq!(result, "0b111");
+    }
+
+    #[test]
+    fn test_format_float() {
+        // Test Default format
+        let options = FormatterOptions::default();
+        let result = Formatters::format_float(&3.14159, &options);
+        assert_eq!(result, "3.14159");
+
+        // Test Fixed format with precision 2
+        let options = FormatterOptions {
+            float_format: FloatFormat::Fixed(Some(2)),
+            ..Default::default()
+        };
+        let result = Formatters::format_float(&3.14159, &options);
+        assert_eq!(result, "3.14");
+
+        // Test Fixed format with precision 4
+        let options = FormatterOptions {
+            float_format: FloatFormat::Fixed(Some(4)),
+            ..Default::default()
+        };
+        let result = Formatters::format_float(&3.14159, &options);
+        assert_eq!(result, "3.1416");
+
+        // Test Fixed format with None (default 6)
+        let options = FormatterOptions {
+            float_format: FloatFormat::Fixed(None),
+            ..Default::default()
+        };
+        let result = Formatters::format_float(&3.1415926535, &options);
+        assert_eq!(result, "3.141593");
+
+        // Test Scientific format
+        let options = FormatterOptions {
+            float_format: FloatFormat::Scientific,
+            ..Default::default()
+        };
+        let result = Formatters::format_float(&0.001, &options);
+        assert_eq!(result, "1e-3");
+
+        // Test Custom format with precision
+        let options = FormatterOptions {
+            float_format: FloatFormat::Custom(".3f".to_string()),
+            ..Default::default()
+        };
+        let result = Formatters::format_float(&3.14159, &options);
+        assert_eq!(result, "3.142");
+
+        // Test Custom format with sign prefix
+        let options = FormatterOptions {
+            float_format: FloatFormat::Custom("+.0f".to_string()),
+            ..Default::default()
+        };
+        let result = Formatters::format_float(&3.7, &options);
+        assert_eq!(result, "+4");
+
+        // Test Custom format with scientific notation
+        let options = FormatterOptions {
+            float_format: FloatFormat::Custom(".2e".to_string()),
+            ..Default::default()
+        };
+        let result = Formatters::format_float(&3.14159, &options);
+        assert_eq!(result, "3.14e0");
+    }
+
+    #[test]
+    fn test_format_value_with_float_formats() {
+        // Test Float value with Fixed format
+        let fixed_options = FormatterOptions {
+            float_format: FloatFormat::Fixed(Some(2)),
+            ..Default::default()
+        };
+        let result = Formatters::format_value(&Value::Float(3.14159), &fixed_options);
+        assert_eq!(result, "3.14");
+
+        // Test Float value with Scientific format
+        let sci_options = FormatterOptions {
+            float_format: FloatFormat::Scientific,
+            ..Default::default()
+        };
+        let result = Formatters::format_value(&Value::Float(0.001), &sci_options);
+        assert_eq!(result, "1e-3");
+
+        // Test Float value with Custom format
+        let custom_options = FormatterOptions {
+            float_format: FloatFormat::Custom("+.0f".to_string()),
+            ..Default::default()
+        };
+        let result = Formatters::format_value(&Value::Float(3.7), &custom_options);
+        assert_eq!(result, "+4");
     }
 }

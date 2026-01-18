@@ -61,6 +61,16 @@ pub struct ParserConfig {
     /// If set to true, commands with names that are valid integers will be converted
     /// to special number commands. If set to false, they will be treated as regular commands.
     pub convert_number_command: bool,
+    /// Whether to preserve indentation in text and annotation lines
+    ///
+    /// If set to true, leading whitespace (indentation) will be preserved in text and
+    /// annotation content. If set to false, leading whitespace will be trimmed.
+    pub preserve_indent: bool,
+    /// Whether to preserve empty lines as text commands
+    ///
+    /// If set to true, empty lines will be preserved and returned as empty text commands.
+    /// If set to false, empty lines will be skipped.
+    pub preserve_empty_lines: bool,
 }
 
 impl Default for ParserConfig {
@@ -69,6 +79,8 @@ impl Default for ParserConfig {
             command_threshold: 1,
             skip_annotations: false,
             convert_number_command: true,
+            preserve_indent: false,
+            preserve_empty_lines: false,
         }
     }
 }
@@ -78,6 +90,10 @@ impl ParserConfig {
     ///
     /// # Arguments
     /// * `threshold` - Number of # characters required to identify a command line
+    /// * `skip_annotations` - Whether to skip annotation lines
+    /// * `convert_number_command` - Whether to convert number commands
+    /// * `preserve_indent` - Whether to preserve leading whitespace in text/annotations
+    /// * `preserve_empty_lines` - Whether to preserve empty lines as text commands
     ///
     /// # Examples
     ///
@@ -87,14 +103,22 @@ impl ParserConfig {
     /// // Default configuration (threshold = 1)
     /// let config = ParserConfig::default();
     ///
-    /// // Custom threshold
-    /// let config = ParserConfig { command_threshold: 2, skip_annotations: true, convert_number_command: true };
+    /// // Custom configuration
+    /// let config = ParserConfig::new(2, true, true, false, false);
     /// ```
-    pub fn new(threshold: usize, skip_annotations: bool, convert_number_command: bool) -> Self {
+    pub fn new(
+        threshold: usize,
+        skip_annotations: bool,
+        convert_number_command: bool,
+        preserve_indent: bool,
+        preserve_empty_lines: bool,
+    ) -> Self {
         Self {
             command_threshold: threshold,
             skip_annotations,
             convert_number_command,
+            preserve_indent,
+            preserve_empty_lines,
         }
     }
 
@@ -146,6 +170,40 @@ impl ParserConfig {
     /// ```
     pub fn with_convert_number_command(mut self, convert: bool) -> Self {
         self.convert_number_command = convert;
+        self
+    }
+
+    /// Set whether to preserve indentation in text and annotation lines
+    ///
+    /// # Arguments
+    /// * `preserve` - Whether to preserve leading whitespace in text/annotations
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use koicore::parser::ParserConfig;
+    ///
+    /// let config = ParserConfig::default().with_preserve_indent(true);
+    /// ```
+    pub fn with_preserve_indent(mut self, preserve: bool) -> Self {
+        self.preserve_indent = preserve;
+        self
+    }
+
+    /// Set whether to preserve empty lines as text commands
+    ///
+    /// # Arguments
+    /// * `preserve` - Whether to preserve empty lines as text commands
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use koicore::parser::ParserConfig;
+    ///
+    /// let config = ParserConfig::default().with_preserve_empty_lines(true);
+    /// ```
+    pub fn with_preserve_empty_lines(mut self, preserve: bool) -> Self {
+        self.preserve_empty_lines = preserve;
         self
     }
 }
@@ -220,7 +278,9 @@ impl<T: TextInputSource> Parser<T> {
             };
             let trimmed = line_text.trim();
             if trimmed.is_empty() {
-                // Skip empty lines
+                if self.config.preserve_empty_lines {
+                    break Ok(Some(Command::new_text("")));
+                }
                 continue;
             }
 
@@ -228,12 +288,23 @@ impl<T: TextInputSource> Parser<T> {
             let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
 
             if hash_count < self.config.command_threshold {
-                break Ok(Some(Command::new_text(trimmed)));
+                let text_content = if self.config.preserve_indent {
+                    line_text.trim_end().to_string()
+                } else {
+                    trimmed.to_string()
+                };
+                break Ok(Some(Command::new_text(text_content)));
             } else if hash_count > self.config.command_threshold {
                 if self.config.skip_annotations {
                     continue;
                 }
-                break Ok(Some(Command::new_annotation(trimmed)));
+                let annotation_content = if self.config.preserve_indent {
+                    line_text.trim_end().to_string()
+                } else {
+                    let content: String = trimmed.chars().skip(hash_count).collect();
+                    content.trim().to_string()
+                };
+                break Ok(Some(Command::new_annotation(annotation_content)));
             } else {
                 // hash_count == self.config.command_threshold
                 let column = line_text.offset(trimmed) + hash_count;
@@ -398,6 +469,18 @@ impl<T: TextInputSource> AsMut<T> for Parser<T> {
     }
 }
 
+impl<T: TextInputSource> Iterator for Parser<T> {
+    type Item = ParseResult<Command>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.next_command() {
+            Ok(Some(cmd)) => Some(Ok(cmd)),
+            Ok(None) => None,
+            Err(e) => Some(Err(e)),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -409,19 +492,90 @@ mod tests {
         assert_eq!(config.command_threshold, 1);
         assert!(!config.skip_annotations);
         assert!(config.convert_number_command);
+        assert!(!config.preserve_indent);
+        assert!(!config.preserve_empty_lines);
 
-        let config = ParserConfig::new(2, true, false);
+        let config = ParserConfig::new(2, true, false, true, true);
         assert_eq!(config.command_threshold, 2);
         assert!(config.skip_annotations);
         assert!(!config.convert_number_command);
+        assert!(config.preserve_indent);
+        assert!(config.preserve_empty_lines);
 
         let config = ParserConfig::default()
             .with_command_threshold(3)
             .with_skip_annotations(true)
-            .with_convert_number_command(false);
+            .with_convert_number_command(false)
+            .with_preserve_indent(true)
+            .with_preserve_empty_lines(true);
         assert_eq!(config.command_threshold, 3);
         assert!(config.skip_annotations);
         assert!(!config.convert_number_command);
+        assert!(config.preserve_indent);
+        assert!(config.preserve_empty_lines);
+    }
+
+    #[test]
+    fn test_preserve_indent() {
+        let input = StringInputSource::new("  indented text\nnormal text");
+        
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+        let cmd = parser.next_command().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@text");
+        assert_eq!(cmd.params()[0].to_string(), "\"indented text\"");
+        
+        let input = StringInputSource::new("  indented text\nnormal text");
+        let config = ParserConfig::default().with_preserve_indent(true);
+        let mut parser = Parser::new(input, config);
+        let cmd = parser.next_command().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@text");
+        assert_eq!(cmd.params()[0].to_string(), "\"  indented text\"");
+    }
+
+    #[test]
+    fn test_preserve_empty_lines() {
+        let input = StringInputSource::new("text1\n\ntext2");
+        
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+        let cmd1 = parser.next_command().unwrap().unwrap();
+        assert_eq!(cmd1.name(), "@text");
+        assert_eq!(cmd1.params()[0].to_string(), "text1");
+        let cmd2 = parser.next_command().unwrap().unwrap();
+        assert_eq!(cmd2.name(), "@text");
+        assert_eq!(cmd2.params()[0].to_string(), "text2");
+        
+        let input = StringInputSource::new("text1\n\ntext2");
+        let config = ParserConfig::default().with_preserve_empty_lines(true);
+        let mut parser = Parser::new(input, config);
+        let cmd1 = parser.next_command().unwrap().unwrap();
+        assert_eq!(cmd1.name(), "@text");
+        assert_eq!(cmd1.params()[0].to_string(), "text1");
+        let cmd_empty = parser.next_command().unwrap().unwrap();
+        assert_eq!(cmd_empty.name(), "@text");
+        assert_eq!(cmd_empty.params()[0].to_string(), "\"\"");
+        let cmd2 = parser.next_command().unwrap().unwrap();
+        assert_eq!(cmd2.name(), "@text");
+        assert_eq!(cmd2.params()[0].to_string(), "text2");
+    }
+
+    #[test]
+    fn test_preserve_indent_annotation() {
+        let input = StringInputSource::new("##  annotation text");
+        
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+        let cmd = parser.next_command().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@annotation");
+        assert_eq!(cmd.params()[0].to_string(), "\"annotation text\"");
+        
+        let input = StringInputSource::new("##  annotation text");
+        let config = ParserConfig::default().with_preserve_indent(true);
+        let mut parser = Parser::new(input, config);
+        let cmd = parser.next_command().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@annotation");
+        assert_eq!(cmd.params()[0].to_string(), "\"##  annotation text\"");
     }
 
     #[test]

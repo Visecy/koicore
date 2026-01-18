@@ -45,7 +45,7 @@ Regular text content here.
     println!("  - ###+ prefix = Annotation");
     
     let input2 = StringInputSource::new(koi_script);
-    let config2 = ParserConfig::new(2, false, true);
+    let config2 = ParserConfig::new(2, false, true, false, false);
     let mut parser2 = Parser::new(input2, config2);
     
     parse_and_display_commands(&mut parser2)?;
@@ -82,7 +82,7 @@ third_command "Multiple" "parameters" "example"
     "#;
     
     let input4 = StringInputSource::new(script_for_threshold_0);
-    let config4 = ParserConfig::new(0, false, true);
+    let config4 = ParserConfig::new(0, false, true, false, false);
     let mut parser4 = Parser::new(input4, config4);
     
     parse_and_display_commands(&mut parser4)?;
@@ -95,7 +95,7 @@ third_command "Multiple" "parameters" "example"
     println!("  - ###+ prefix = Skipped (not displayed)");
     
     let input5 = StringInputSource::new(koi_script);
-    let config5 = ParserConfig::new(2, true, true);
+    let config5 = ParserConfig::new(2, true, true, false, false);
     let mut parser5 = Parser::new(input5, config5);
     
     parse_and_display_commands(&mut parser5)?;
@@ -111,7 +111,7 @@ Regular text here
     
     for threshold in 0..=4 {
         let input = StringInputSource::new(test_script);
-        let config = ParserConfig::new(threshold, false, true);
+        let config = ParserConfig::new(threshold, false, true, false, false);
         let mut parser = Parser::new(input, config);
         
         print!("Threshold {}: ", threshold);

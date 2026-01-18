@@ -60,8 +60,197 @@ fn test_writer_parser_compatibility() {
         let parsed_command = parsed_command.unwrap();
 
         // Check if the parsed command matches the original
-        assert_eq!(parsed_command.name(), command.name());
-        assert_eq!(parsed_command.params.len(), command.params.len());
+        assert_eq!(parsed_command, command);
+    }
+}
+
+// Test Parser-Writer compatibility for various formatting options
+#[test]
+fn test_parser_writer_compatibility() {
+    let test_cases: Vec<(&str, WriterConfig)> = vec![
+        (
+            "#simple param1 param2",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd \"Hello World\"",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd 123",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd key(value)",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd pos(x: 10, y: 20)",
+            WriterConfig::default(),
+        ),
+        (
+            "#hex_cmd 0xff",
+            WriterConfig {
+                command_options: vec![(
+                    "hex_cmd".to_string(),
+                    FormatterOptions {
+                        number_format: NumberFormat::Hex,
+                        ..Default::default()
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            },
+        ),
+        (
+            "#hex_cmd 0x2a 0x10",
+            WriterConfig {
+                command_options: vec![(
+                    "hex_cmd".to_string(),
+                    FormatterOptions {
+                        number_format: NumberFormat::Hex,
+                        ..Default::default()
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            },
+        ),
+        (
+            "#bin_cmd 0b1010",
+            WriterConfig {
+                command_options: vec![(
+                    "bin_cmd".to_string(),
+                    FormatterOptions {
+                        number_format: NumberFormat::Binary,
+                        ..Default::default()
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            },
+        ),
+        (
+            "#oct_cmd 0o77",
+            WriterConfig {
+                command_options: vec![(
+                    "oct_cmd".to_string(),
+                    FormatterOptions {
+                        number_format: NumberFormat::Octal,
+                        ..Default::default()
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            },
+        ),
+        (
+            "#quoted_cmd \"var1\" \"var2\"",
+            WriterConfig {
+                command_options: vec![(
+                    "quoted_cmd".to_string(),
+                    FormatterOptions {
+                        force_quotes_for_vars: true,
+                        ..Default::default()
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            },
+        ),
+        (
+            "#cmd true false",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd 3.14",
+            WriterConfig::default(),
+        ),
+        (
+            "Just plain text",
+            WriterConfig::default(),
+        ),
+        (
+            "## This is an annotation",
+            WriterConfig::default(),
+        ),
+        (
+            "#123 extra_param",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd a b c d e",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd 42 string_var true false 3.14",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd color(255, 255, 255)",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd with_underscore and123number",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd \"with space\" \"and tab\"",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd \"escaped\\\\backslash\" \"newline\\nhere\"",
+            WriterConfig::default(),
+        ),
+        (
+            "#cmd -42 -3.14",
+            WriterConfig::default(),
+        ),
+    ];
+
+    let parser_config = ParserConfig::default();
+
+    for (original, config) in test_cases {
+        let input = StringInputSource::new(original);
+        let mut parser = Parser::new(input, parser_config.clone());
+
+        let parsed = parser.next_command();
+        assert!(
+            parsed.is_ok(),
+            "Failed to parse: {}",
+            original
+        );
+        let parsed_command = parsed.unwrap();
+        assert!(
+            parsed_command.is_some(),
+            "No command parsed from: {}",
+            original
+        );
+        let parsed_command = parsed_command.unwrap();
+
+        let mut output = Vec::new();
+        let mut writer = Writer::new(&mut output, config);
+        writer
+            .write_command(&parsed_command)
+            .expect("Failed to write command");
+        let generated = String::from_utf8(output).unwrap();
+
+        assert_eq!(
+            generated.trim_end(),
+            original,
+            "Generated text does not match original:\n  original: {:?}\n  generated: {:?}",
+            original,
+            generated.trim_end()
+        );
     }
 }
 

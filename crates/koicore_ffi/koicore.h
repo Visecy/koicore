@@ -32,17 +32,6 @@ typedef enum KoiFileInputEncodingStrategy {
 } KoiFileInputEncodingStrategy;
 
 /**
- * Number format for numeric values
- */
-typedef enum KoiNumberFormat {
-  Unknown = 0,
-  Decimal = 1,
-  Hex = 2,
-  Octal = 3,
-  Binary = 4,
-} KoiNumberFormat;
-
-/**
  * Opaque handle for KoiLang input sources
  *
  * This structure represents an input source that provides text to the parser.
@@ -133,6 +122,20 @@ typedef struct KoiParserConfig {
    * to special number commands. If set to false, they will be treated as regular commands.
    */
   bool convert_number_command;
+  /**
+   * Whether to preserve indentation in text and annotation lines
+   *
+   * If set to true, leading whitespace (indentation) will be preserved in text and
+   * annotation content. If set to false, leading whitespace will be trimmed.
+   */
+  bool preserve_indent;
+  /**
+   * Whether to preserve empty lines as text commands
+   *
+   * If set to true, empty lines will be preserved and returned as empty text commands.
+   * If set to false, empty lines will be skipped.
+   */
+  bool preserve_empty_lines;
 } KoiParserConfig;
 
 /**
@@ -220,7 +223,8 @@ typedef struct KoiFormatterOptions {
   bool newline_after;
   bool compact;
   bool force_quotes_for_vars;
-  enum KoiNumberFormat number_format;
+  const char *number_format;
+  const char *float_format;
   bool newline_before_param;
   bool newline_after_param;
   bool should_override;

@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 
 /// Number format options for numeric values
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum NumberFormat {
     /// Unknown format (default)
     #[default]
@@ -19,7 +19,45 @@ pub enum NumberFormat {
     Octal,
     /// Binary format
     Binary,
+    /// Custom format string (e.g., "#08x", "016b", "03o")
+    /// The prefix will be automatically added when formatting.
+    Custom(String),
 }
+
+impl From<String> for NumberFormat {
+    fn from(s: String) -> Self {
+        Self::Custom(s)
+    }
+}
+
+impl ToString for NumberFormat {
+    fn to_string(&self) -> String {
+        match self {
+            NumberFormat::Hex => "X".to_string(),
+            NumberFormat::Octal => "o".to_string(),
+            NumberFormat::Binary => "b".to_string(),
+            NumberFormat::Custom(fmt) => {
+                if !fmt.starts_with("#") {
+                    fmt.clone()
+                } else {
+                    fmt[1..].to_string()
+                }
+            }
+            _ => "".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+pub enum FloatFormat {
+    #[default]
+    Default,
+    Fixed(Option<usize>),
+    Scientific,
+    General(Option<usize>),
+    Custom(String),
+}
+
 
 /// Selector for parameter-specific formatting options
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -47,6 +85,8 @@ pub struct FormatterOptions {
     pub force_quotes_for_vars: bool,
     /// Format to use for numeric values
     pub number_format: NumberFormat,
+    /// Format to use for floating-point values
+    pub float_format: FloatFormat,
     /// Whether to add a newline before this specific parameter
     pub newline_before_param: bool,
     /// Whether to add a newline after this specific parameter

@@ -27,7 +27,7 @@ TEST(WriterTest, TestWriteSimpleCommand) {
     
     // Customize after init
     opts.indent = 4;
-    opts.number_format = Decimal;
+    opts.number_format = nullptr;
     
     KoiWriterConfig config;
     KoiWriterConfig_Init(&config);
@@ -174,7 +174,7 @@ TEST(WriterTest, TestParamOptions) {
     // Override pos 0 to Hex
     KoiFormatterOptions hex_opts;
     KoiFormatterOptions_Init(&hex_opts);
-    hex_opts.number_format = Hex;
+    hex_opts.number_format = "x";
     
     KoiParamOption param_opts[] = {
         { { true, 0, nullptr }, hex_opts },

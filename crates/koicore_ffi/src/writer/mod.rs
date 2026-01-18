@@ -8,7 +8,7 @@ use std::io::{BufWriter, Write};
 use std::ptr;
 
 pub use self::config::{
-    KoiCommandOption, KoiFormatterOptions, KoiNumberFormat, KoiParamFormatSelector, KoiParamOption,
+    KoiCommandOption, KoiFormatterOptions, KoiParamFormatSelector, KoiParamOption,
     KoiWriterConfig,
 };
 use self::output::{

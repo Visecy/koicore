@@ -10,8 +10,8 @@ fn test_boolean_parsing_and_writing() {
     let input = "#test_bool p1(true) p2(false)";
     // Input source expects &str
     let source = Arc::new(Mutex::new(StringInputSource::new(input)));
-    // ParserConfig expects 3 args: threshold, skip_annotations, convert_number_command
-    let config = ParserConfig::new(1, false, false);
+    // ParserConfig expects 5 args: threshold, skip_annotations, convert_number_command, preserve_indent, preserve_empty_lines
+    let config = ParserConfig::new(1, false, false, false, false);
     let mut parser = Parser::new(source, config);
 
     let cmd = parser
@@ -54,7 +54,7 @@ fn test_boolean_parsing_and_writing() {
     // Parsing List with boolean l(true, false)
     let input_list = "#test_list l(true, false)";
     let source = Arc::new(Mutex::new(StringInputSource::new(input_list)));
-    let mut parser = Parser::new(source, ParserConfig::new(1, false, false));
+    let mut parser = Parser::new(source, ParserConfig::new(1, false, false, false, false));
     let cmd = parser.next_command().unwrap().unwrap();
 
     // Formatting check
