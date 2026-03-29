@@ -4,6 +4,7 @@
 //! including number formats, formatter options, and parameter selectors.
 
 use std::collections::HashMap;
+use std::fmt;
 
 /// Number format options for numeric values
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -30,20 +31,20 @@ impl From<String> for NumberFormat {
     }
 }
 
-impl ToString for NumberFormat {
-    fn to_string(&self) -> String {
+impl fmt::Display for NumberFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NumberFormat::Hex => "X".to_string(),
-            NumberFormat::Octal => "o".to_string(),
-            NumberFormat::Binary => "b".to_string(),
+            NumberFormat::Hex => write!(f, "X"),
+            NumberFormat::Octal => write!(f, "o"),
+            NumberFormat::Binary => write!(f, "b"),
             NumberFormat::Custom(fmt) => {
                 if !fmt.starts_with("#") {
-                    fmt.clone()
+                    write!(f, "{}", fmt)
                 } else {
-                    fmt[1..].to_string()
+                    write!(f, "{}", &fmt[1..])
                 }
             }
-            _ => "".to_string(),
+            _ => Ok(()),
         }
     }
 }

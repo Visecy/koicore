@@ -1,7 +1,7 @@
 use koicore::WriterConfig;
 use koicore::writer::{FloatFormat, FormatterOptions, NumberFormat};
 use std::collections::HashMap;
-use std::ffi::{CStr, CString, c_char};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 /// Transparent configuration struct for FFI

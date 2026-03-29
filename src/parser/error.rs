@@ -17,8 +17,6 @@ use std::fmt;
 use std::io;
 
 use crate::parser::NomErrorNode;
-use crate::parser::TextInputSource;
-use crate::parser::input::Input;
 use crate::parser::traceback::{LineIndex, TracebackEntry};
 
 /// Result type for parsing operations
@@ -246,26 +244,15 @@ impl ParseError {
         })
     }
 
-    /// Attach source information to this error
+    /// Attach a pre-constructed ParserLineSource to this error
     ///
     /// # Arguments
-    /// * `input` - The input source containing the error
-    /// * `lineno` - The line number where the error occurred
-    /// * `text` - The text content of the line where the error occurred
+    /// * `source` - The pre-constructed source information
     ///
     /// # Returns
     /// The error with source information attached
-    pub(crate) fn with_source<T: TextInputSource>(
-        mut self: Box<Self>,
-        input: &Input<T>,
-        lineno: usize,
-        text: String,
-    ) -> Box<Self> {
-        self.source = Some(ParserLineSource {
-            filename: input.as_ref().source_name().to_string(),
-            lineno,
-            text,
-        });
+    pub(crate) fn with_line_source(mut self: Box<Self>, source: ParserLineSource) -> Box<Self> {
+        self.source = Some(source);
         self
     }
 
@@ -400,7 +387,7 @@ impl fmt::Display for ParseError {
 
             // If we didn't find the end, use the total character count
             if char_end == 0 || char_end < char_start {
-                char_end = (char_start + (end as isize - start as isize).abs() as usize)
+                char_end = (char_start + (end as isize - start as isize).unsigned_abs())
                     .max(char_start + 1);
             }
             // Clamp char_end to line length if it's way out of bounds, but keep at least 1 caret
@@ -481,11 +468,7 @@ mod tests {
 
     #[test]
     fn test_error_with_source() {
-        // We need a dummy input source to test with_source
-        // But with_source takes &Input<T>.
-        // This is hard to unit test without pulling in Input and a source.
-        // We can test the Display output that relies on source being present if we manually construct it.
-
+        // Test the Display output with source information present
         let mut err = ParseError::syntax_with_context("error".to_string(), 1, 1, "ctx".to_string());
         err.source = Some(ParserLineSource {
             filename: "test.koi".to_string(),

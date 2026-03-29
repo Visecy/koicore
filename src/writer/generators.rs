@@ -284,11 +284,10 @@ impl Generators {
         }
         if override_opt.number_format != NumberFormat::Unknown {
             merged.number_format = override_opt.number_format.clone();
-        } else if let NumberFormat::Custom(ref fmt) = merged.number_format {
-            if fmt.is_empty() {
+        } else if let NumberFormat::Custom(ref fmt) = merged.number_format
+            && fmt.is_empty() {
                 merged.number_format = NumberFormat::Decimal;
             }
-        }
         if override_opt.float_format != FloatFormat::Default {
             merged.float_format = override_opt.float_format.clone();
         }
