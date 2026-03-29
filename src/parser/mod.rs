@@ -32,7 +32,7 @@ pub mod input;
 pub mod traceback;
 
 use super::command::Command;
-pub use error::{ErrorInfo, ParseError, ParseResult};
+pub use error::{ErrorInfo, ParseError, ParseResult, ParserLineSource};
 pub use input::{BufReadWrapper, FileInputSource, StringInputSource, TextInputSource};
 use nom::Offset;
 pub use traceback::TracebackEntry;
@@ -262,6 +262,34 @@ impl<T: TextInputSource> Parser<T> {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn next_command(&mut self) -> ParseResult<Option<Command>> {
+        self.next_command_with_source()
+            .map(|opt| opt.map(|(cmd, _)| cmd))
+    }
+
+    /// Get the next command from the input stream with source information
+    ///
+    /// Similar to `next_command()`, but also returns the source location information
+    /// including filename, line number, and original text content.
+    ///
+    /// Returns `Ok(None)` when end of input is reached.
+    /// Returns `Ok(Some((Command, ParserLineSource)))` when a command is successfully parsed.
+    /// Returns `Err(ParseError)` when a parsing error occurs.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use koicore::parser::{Parser, ParserConfig, StringInputSource};
+    ///
+    /// let input = StringInputSource::new("#name \"Test\"");
+    /// let config = ParserConfig::default();
+    /// let mut parser = Parser::new(input, config);
+    ///
+    /// while let Some((command, source)) = parser.next_command_with_source()? {
+    ///     println!("Command: {} at {}:{}", command.name(), source.filename, source.lineno);
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn next_command_with_source(&mut self) -> ParseResult<Option<(Command, ParserLineSource)>> {
         loop {
             let (lineno, line_text) = match self.input.next_line() {
                 Ok(Some(line_info)) => line_info,
@@ -269,17 +297,23 @@ impl<T: TextInputSource> Parser<T> {
                     return Ok(None);
                 }
                 Err(e) => {
-                    return Err(ParseError::io(e).with_source(
-                        &self.input,
-                        self.input.line_number,
-                        "".to_owned(),
-                    ));
+                    let source = ParserLineSource {
+                        filename: self.input.as_ref().source_name().to_string(),
+                        lineno: self.input.line_number,
+                        text: String::new(),
+                    };
+                    return Err(ParseError::io(e).with_line_source(source));
                 }
+            };
+            let source = ParserLineSource {
+                filename: self.input.as_ref().source_name().to_string(),
+                lineno,
+                text: line_text.clone(),
             };
             let trimmed = line_text.trim();
             if trimmed.is_empty() {
                 if self.config.preserve_empty_lines {
-                    break Ok(Some(Command::new_text("")));
+                    break Ok(Some((Command::new_text(""), source)));
                 }
                 continue;
             }
@@ -293,7 +327,7 @@ impl<T: TextInputSource> Parser<T> {
                 } else {
                     trimmed.to_string()
                 };
-                break Ok(Some(Command::new_text(text_content)));
+                break Ok(Some((Command::new_text(text_content), source)));
             } else if hash_count > self.config.command_threshold {
                 if self.config.skip_annotations {
                     continue;
@@ -304,14 +338,15 @@ impl<T: TextInputSource> Parser<T> {
                     let content: String = trimmed.chars().skip(hash_count).collect();
                     content.trim().to_string()
                 };
-                break Ok(Some(Command::new_annotation(annotation_content)));
+                break Ok(Some((Command::new_annotation(annotation_content), source)));
             } else {
                 // hash_count == self.config.command_threshold
                 let column = line_text.offset(trimmed) + hash_count;
                 let command_str: String = trimmed.chars().skip(hash_count).collect();
                 break self
                     .parse_command_line(command_str, lineno, column)
-                    .map_err(|e| e.with_source(&self.input, lineno, line_text));
+                    .map_err(|e| e.with_line_source(source.clone()))
+                    .map(|opt| opt.map(|cmd| (cmd, source)));
             }
         }
     }
@@ -627,5 +662,119 @@ mod tests {
         assert_eq!(parser.current_line(), 1);
         parser.next_command().unwrap();
         assert_eq!(parser.current_line(), 2);
+    }
+
+    #[test]
+    fn test_next_command_with_source_command() {
+        let input = StringInputSource::new("#name \"Test\"\n#draw Line");
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "name");
+        assert_eq!(source.filename, "<string>");
+        assert_eq!(source.lineno, 1);
+        assert_eq!(source.text, "#name \"Test\"\n");
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "draw");
+        assert_eq!(source.lineno, 2);
+        assert_eq!(source.text, "#draw Line");
+    }
+
+    #[test]
+    fn test_next_command_with_source_text() {
+        let input = StringInputSource::new("Hello World\nAnother line");
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@text");
+        assert_eq!(source.filename, "<string>");
+        assert_eq!(source.lineno, 1);
+        assert_eq!(source.text, "Hello World\n");
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@text");
+        assert_eq!(source.lineno, 2);
+        assert_eq!(source.text, "Another line");
+    }
+
+    #[test]
+    fn test_next_command_with_source_annotation() {
+        let input = StringInputSource::new("## annotation text\n## another");
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@annotation");
+        assert_eq!(source.filename, "<string>");
+        assert_eq!(source.lineno, 1);
+        assert_eq!(source.text, "## annotation text\n");
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@annotation");
+        assert_eq!(source.lineno, 2);
+        assert_eq!(source.text, "## another");
+    }
+
+    #[test]
+    fn test_next_command_with_source_eof() {
+        let input = StringInputSource::new("#cmd");
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+
+        let result = parser.next_command_with_source().unwrap();
+        assert!(result.is_some());
+
+        let result = parser.next_command_with_source().unwrap();
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_next_command_with_source_error() {
+        let input = StringInputSource::new("#");
+        let config = ParserConfig::default();
+        let mut parser = Parser::new(input, config);
+
+        let result = parser.next_command_with_source();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_next_command_with_source_preserve_empty_lines() {
+        let input = StringInputSource::new("text1\n\ntext2");
+        let config = ParserConfig::default().with_preserve_empty_lines(true);
+        let mut parser = Parser::new(input, config);
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@text");
+        assert_eq!(source.lineno, 1);
+        assert_eq!(source.text, "text1\n");
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@text");
+        assert_eq!(source.lineno, 2);
+        assert_eq!(source.text, "\n");
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "@text");
+        assert_eq!(source.lineno, 3);
+        assert_eq!(source.text, "text2");
+    }
+
+    #[test]
+    fn test_next_command_with_source_skip_annotations() {
+        let input = StringInputSource::new("#cmd1\n##annotation\n#cmd2");
+        let config = ParserConfig::default().with_skip_annotations(true);
+        let mut parser = Parser::new(input, config);
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "cmd1");
+        assert_eq!(source.lineno, 1);
+
+        let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(cmd.name(), "cmd2");
+        assert_eq!(source.lineno, 3);
     }
 }
