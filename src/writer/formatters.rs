@@ -113,7 +113,7 @@ impl Formatters {
                     format!("{:e}", f)
                 }
             }
-            'f' | _ => {
+            _ => {
                 if let Some(p) = precision {
                     format!("{:.1$}", f, p)
                 } else {

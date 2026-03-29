@@ -387,7 +387,7 @@ impl fmt::Display for ParseError {
 
             // If we didn't find the end, use the total character count
             if char_end == 0 || char_end < char_start {
-                char_end = (char_start + (end as isize - start as isize).abs() as usize)
+                char_end = (char_start + (end as isize - start as isize).unsigned_abs())
                     .max(char_start + 1);
             }
             // Clamp char_end to line length if it's way out of bounds, but keep at least 1 caret
