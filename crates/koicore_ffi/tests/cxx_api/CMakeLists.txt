@@ -17,7 +17,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 link_directories(
-  AFTER ${CMAKE_SOURCE_DIR}/../../../../target/release
+  AFTER ${CMAKE_SOURCE_DIR}/../../../../target/cmake-build
 )
 
 # Test parser

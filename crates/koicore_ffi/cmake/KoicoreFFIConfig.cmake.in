@@ -1,0 +1,35 @@
+@PACKAGE_INIT@
+
+# KoicoreFFI CMake Configuration File
+#
+# This file is part of the KoicoreFFI package.
+# It provides the necessary configuration to use KoicoreFFI from CMake.
+#
+# Usage:
+#   find_package(KoicoreFFI REQUIRED)
+#   target_link_libraries(your_target KoiFFI::koicore_ffi)
+#
+# Imported targets:
+#   KoiFFI::koicore_ffi - The main FFI library target
+
+# Check if required components are available
+set(_KoicoreFFI_supported_components static shared)
+foreach(_comp ${KoicoreFFI_FIND_COMPONENTS})
+    if(NOT _comp IN_LIST _KoicoreFFI_supported_components)
+        set(KoicoreFFI_FOUND FALSE)
+        set(KoicoreFFI_NOT_FOUND_MESSAGE "Unsupported component: ${_comp}")
+    endif()
+endforeach()
+
+# Include the targets file
+include("${CMAKE_CURRENT_LIST_DIR}/KoicoreFFITargets.cmake")
+
+# Verify all requested components are available
+check_required_components(KoicoreFFI)
+
+# Provide some useful variables
+if(TARGET KoiFFI::koicore_ffi)
+    set(KOICORE_FFI_FOUND TRUE)
+    get_target_property(KOICORE_FFI_INCLUDE_DIRS KoiFFI::koicore_ffi INTERFACE_INCLUDE_DIRECTORIES)
+    get_target_property(KOICORE_FFI_LIBRARIES KoiFFI::koicore_ffi IMPORTED_LOCATION)
+endif()

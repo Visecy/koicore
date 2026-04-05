@@ -22,27 +22,103 @@ The koicore FFI module (`koicore_ffi`) exposes the core KoiLang parsing function
 
 - Rust toolchain (stable)
 - C++17 compatible compiler
-- CMake 3.14 or later
+- CMake 3.22 or later
 - GoogleTest (automatically fetched by CMake)
 
 ### Build Steps
 
 ```bash
-# Build the Rust library
-make build
-
-# Build and run C++ tests
-make ffi-test
+# Build the Rust library and generate headers
+cd crates/koicore_ffi
+mkdir build && cd build
+cmake ..
+cmake --build .
 ```
 
-### Linking
+### Installation
 
-Link against the compiled `libkoicore_ffi.a` (static library) or `libkoicore_ffi.so` (shared library):
+```bash
+# Install to system default location
+cmake --install . --prefix /usr/local
+
+# Or install to custom location
+cmake --install . --prefix /opt/koicore
+```
+
+### CMake Integration
+
+The koicore_ffi library provides two integration methods:
+
+#### Method 1: Using FetchContent (Recommended for Git-based projects)
 
 ```cmake
-# CMakeLists.txt
-target_link_libraries(your_target koicore_ffi)
+cmake_minimum_required(VERSION 3.22)
+project(your_project LANGUAGES C CXX)
+
+include(FetchContent)
+
+# Fetch Corrosion (Rust-CMake integration tool)
+FetchContent_Declare(
+    Corrosion
+    GIT_REPOSITORY https://github.com/corrosion-rs/corrosion.git
+    GIT_TAG v0.6
+)
+
+# Fetch koicore_ffi from the repository
+FetchContent_Declare(
+    koicore_ffi
+    GIT_REPOSITORY https://github.com/Visecy/koicore.git
+    GIT_TAG main  # Or specify a version tag like "v0.2.3"
+    SOURCE_SUBDIR crates/koicore_ffi
+)
+
+FetchContent_MakeAvailable(Corrosion koicore_ffi)
+
+# Link against the library
+# When using FetchContent, the target name is 'koicore_ffi'
+# After installation with find_package, use 'KoiFFI::koicore_ffi'
+add_executable(your_app main.c)
+target_link_libraries(your_app PRIVATE koicore_ffi)
 ```
+
+#### Method 2: Using find_package (After Installation)
+
+After installing koicore_ffi, you can use find_package:
+
+```cmake
+cmake_minimum_required(VERSION 3.22)
+project(your_project LANGUAGES C CXX)
+
+find_package(KoicoreFFI REQUIRED)
+
+add_executable(your_app main.c)
+target_link_libraries(your_app PRIVATE KoiFFI::koicore_ffi)
+```
+
+### Cargo Configuration Passthrough
+
+You can customize the Rust build using Corrosion's functions:
+
+```cmake
+# Set environment variables for the Rust build
+corrosion_set_env_vars(koicore_ffi "RUSTFLAGS=-C target-cpu=native")
+
+# Add custom rustflags
+corrosion_add_target_rustflags(koicore_ffi "-C opt-level=3")
+
+# Use a specific Rust toolchain
+set(Rust_TOOLCHAIN "nightly")
+```
+
+### Cross-Compilation
+
+For cross-compilation, use CMake's toolchain file:
+
+```bash
+cmake .. -DCMAKE_TOOLCHAIN_FILE=/path/to/toolchain.cmake
+```
+
+Corrosion will automatically pass the target to Cargo.
 
 ## Quick Start
 
