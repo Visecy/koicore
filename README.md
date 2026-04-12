@@ -14,9 +14,9 @@ Core KoiLang language module providing basic language features.
 
 ## Overview
 
-KoiLang is a markup language designed for narrative content, particularly suited for visual novels, interactive fiction, and dialogue-driven applications. The `koicore` crate provides the fundamental parsing and data structures needed to work with KoiLang files.
+KoiLang is a markup language that emphasizes high readability by embedding structured commands within natural language text. While well-suited for visual novels, interactive fiction, and dialogue-driven applications, KoiLang itself does not provide built-in commands or domain-specific features. Instead, it offers a flexible syntax where applications define their own command semantics. The `koicore` crate provides the fundamental parsing and data structures needed to work with KoiLang files.
 
-The core idea of KoiLang is to separate data and instructions. KoiLang files contain the data (commands and text), while your application provides the instructions (how to handle those commands). This makes KoiLang files easy to read and write for humans, while being powerful enough for complex applications.
+KoiLang adopts a design where files contain commands and text content, while your application provides the semantics and logic to interpret those commands. This separation makes KoiLang files human-readable and easy to write, while allowing applications to implement complex behavior.
 
 ## Features
 
@@ -282,13 +282,13 @@ println!("{}", String::from_utf8(buffer)?);
 
 ## Advanced Features
 
-### Philosophy: Data vs Instructions
+### Design Philosophy
 
-The key innovation of KoiLang is the separation of concerns:
-- **KoiLang files** contain the data (commands and text content)
-- **Your application** provides the instructions (how to handle those commands)
+KoiLang's design emphasizes readability and flexibility:
+- **KoiLang files** contain commands and text content in a human-readable format
+- **Your application** provides the semantics and logic to interpret those commands
 
-This makes KoiLang files human-readable and easy to write, while your application can implement complex logic to process them. Think of it as a simple virtual machine engine where KoiLang files are the bytecode and your application is the VM.
+This design makes KoiLang files easy to read and write, while allowing applications to implement complex behavior. The syntax is particularly well-suited for scenarios where natural language text forms the primary content, with structured commands interspersed to provide instructions or metadata.
 
 ### Streaming Large Files
 Process massive files efficiently:

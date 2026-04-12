@@ -1,74 +1,43 @@
 # AGENTS.md
 
-## Project Overview
+## Project Context
 
-KoiLang is a markup language designed for narrative content (visual novels, interactive fiction). The project is a Rust workspace consisting of:
+KoiLang is a Rust workspace (koicore + koicore_ffi + koicli). KoiLang is a markup language that emphasizes high readability by embedding structured commands within natural language text. It does not provide built-in commands or domain-specific features, but offers a flexible syntax where applications define their own command semantics.
+For full project overview, see README.md.
 
-- **koicore** - Core parsing and writing library
-- **koicore_ffi** - C-compatible FFI bindings
-- **koicli** - Command-line interface
+## Essential Workflow
 
-## Build Commands
+| Action | Command |
+|--------|---------|
+| Build | `cargo build --release --workspace` |
+| Test | `cargo test` |
+| FFI tests | `make ffi-test` |
+| CMake tests | `make cmake-integration-test` |
+| Doc | `cargo doc --workspace --no-deps` |
+| Lint | `cargo clippy --workspace` |
 
-```bash
-# Build entire workspace
-cargo build --release --workspace
+## Critical Conventions
 
-# Run tests
-cargo test
+1. **Rust Edition 2024** — Use 2024 edition syntax
+2. **FFI Memory Ownership** — MUST be explicit and documented:
+   - Functions returning owned memory must be clearly marked
+   - Caller is responsible for freeing what they allocate
+   - Use `cbindgen` for header generation
+3. **Documentation** — All public items need doc comments
+4. **Error Handling** — Use `Result` types with descriptive errors
 
-# Run FFI tests (requires CMake)
-make ffi-test
+## Module Quick Reference
 
-# CMake integration tests
-make cmake-integration-test
+- `koicore/src/parser/` — Streaming parser (Parser, ParserConfig, inputs)
+- `koicore/src/command/` — Command and Parameter structs
+- `koicore/src/writer/` — KoiLang code generation
+- `koicore_ffi/src/` — C-compatible FFI API
 
-# CMake build
-make cmake-build
+## Verification Checklist
 
-# Documentation
-cargo doc --workspace --no-deps
-```
-
-## Project Structure
-
-```
-koicore/
-├── Cargo.toml              # Workspace manifest
-├── Makefile                # Build automation
-├── src/                    # koicore source (parser, writer, command structures)
-├── examples/               # Usage examples
-├── benches/                # Performance benchmarks
-├── crates/
-│   ├── koicore_ffi/        # FFI bindings with cbindgen
-│   │   ├── src/            # C API implementation
-│   │   ├── include/        # C header files
-│   │   └── tests/           # Integration tests
-│   └── koicli/             # CLI tool
-```
-
-## Key Modules
-
-### koicore
-- `parser/` - Streaming parser with `Parser`, `ParserConfig`, input sources
-- `command/` - `Command` and `Parameter` data structures
-- `writer/` - KoiLang code generation
-
-### koicore_ffi
-- C-compatible API in `src/`
-- Generated headers via cbindgen
-- CMake build support for integration
-
-## Code Conventions
-
-1. **Rust Edition 2024** - Project uses Rust edition 2024
-2. **Documentation** - All public items should have doc comments
-3. **Error Handling** - Use `Result` types with descriptive errors
-4. **FFI** - Memory ownership must be explicit and documented
-
-## Testing
-
-- Unit tests: `cargo test`
-- FFI tests: `make ffi-test` (C++ integration tests)
-- CMake tests: `make cmake-integration-test`
-- Benchmarks: `cargo bench`
+Before completing any task:
+- [ ] `cargo build --release --workspace` succeeds
+- [ ] `cargo test` passes
+- [ ] `cargo clippy --workspace` has no warnings
+- [ ] `cargo doc --workspace --no-deps` generates without errors
+- [ ] FFI tests pass: `make ffi-test`
