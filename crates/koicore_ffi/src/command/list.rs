@@ -21,9 +21,51 @@ pub struct KoiCompositeList {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
-/// Get composite list parameter from command
+/// Borrow composite list parameter from command
 ///
-/// This function retrieves a list parameter from a command at the specified index.
+/// This function retrieves a borrowed reference to a list parameter from a command.
+/// The parameter must be of list type, otherwise NULL is returned.
+///
+/// # Ownership and Lifetime
+///
+/// The returned pointer is a borrowed reference to data owned by the command.
+/// It must NOT be freed with KoiCompositeList_Del. The pointer is only valid
+/// as long as the command object exists and is not modified or destroyed.
+///
+/// # Arguments
+///
+/// * `command` - Pointer to the command object
+/// * `index` - Zero-based index of the parameter to retrieve
+///
+/// # Returns
+///
+/// Pointer to the composite list parameter, or NULL if:
+/// - command is NULL
+/// - index is out of bounds
+/// - the parameter at the specified index is not a list
+///
+/// # Safety
+///
+/// The `command` pointer must be either NULL or point to a valid KoiCommand object.
+/// The returned pointer must NOT be freed with KoiCompositeList_Del as it is owned by the command.
+/// The returned pointer becomes invalid if the command is destroyed or modified.
+///
+/// # Deprecated
+///
+/// This function is deprecated in favor of `KoiCommand_BorrowCompositeList` which has
+/// a clearer name indicating the borrowing semantics. Use `KoiCommand_BorrowCompositeList`
+/// for new code.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_GetCompositeList(
+    command: *mut KoiCommand,
+    index: usize,
+) -> *mut KoiCompositeList {
+    unsafe { KoiCommand_BorrowCompositeList(command, index) }
+}
+
+/// Borrow composite list parameter from command
+///
+/// This function retrieves a borrowed reference to a list parameter from a command.
 /// The parameter must be of list type, otherwise NULL is returned.
 ///
 /// # Ownership and Lifetime
@@ -50,7 +92,7 @@ pub struct KoiCompositeList {
 /// The returned pointer must NOT be freed with KoiCompositeList_Del as it is owned by the command.
 /// The returned pointer becomes invalid if the command is destroyed or modified.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_GetCompositeList(
+pub unsafe extern "C" fn KoiCommand_BorrowCompositeList(
     command: *mut KoiCommand,
     index: usize,
 ) -> *mut KoiCompositeList {
@@ -69,6 +111,56 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeList(
         p @ &Parameter::Composite(_, CompositeValue::List(_)) => {
             // Cast the parameter reference to the opaque list type
             p as *const Parameter as *mut KoiCompositeList
+        }
+        _ => ptr::null_mut(),
+    }
+}
+
+/// Clone composite list parameter from command
+///
+/// This function creates a new copy of a list parameter from a command.
+/// The returned pointer is owned by the caller and must be freed with
+/// `KoiCompositeList_Del` when no longer needed.
+///
+/// # Arguments
+///
+/// * `command` - Pointer to the command object
+/// * `index` - Zero-based index of the parameter to clone
+///
+/// # Returns
+///
+/// Pointer to a new composite list parameter, or NULL if:
+/// - command is NULL
+/// - index is out of bounds
+/// - the parameter at the specified index is not a list
+///
+/// # Safety
+///
+/// The `command` pointer must be either NULL or point to a valid KoiCommand object.
+/// The returned pointer must be freed with `KoiCompositeList_Del` when no longer needed.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_CloneCompositeList(
+    command: *mut KoiCommand,
+    index: usize,
+) -> *mut KoiCompositeList {
+    if command.is_null() {
+        return ptr::null_mut();
+    }
+
+    let command = unsafe { &*(command as *mut Command) };
+    let params = command.params();
+
+    if index >= params.len() {
+        return ptr::null_mut();
+    }
+
+    match &params[index] {
+        Parameter::Composite(name, CompositeValue::List(values)) => {
+            let cloned = Parameter::Composite(
+                name.clone(),
+                CompositeValue::List(values.clone()),
+            );
+            Box::into_raw(Box::new(cloned)) as *mut KoiCompositeList
         }
         _ => ptr::null_mut(),
     }

@@ -441,9 +441,44 @@ struct KoiCompositeDict *KoiCompositeDict_New(const char *name);
 int32_t KoiCommand_AddCompositeDict(struct KoiCommand *command, struct KoiCompositeDict *dict);
 
 /**
- * Get composite dict parameter from command
+ * Borrow composite dict parameter from command
  *
- * Retrieves a dictionary parameter from a command at the specified index.
+ * Retrieves a borrowed reference to a dictionary parameter from a command.
+ * The parameter must be of dictionary type, otherwise null is returned.
+ *
+ * # Ownership and Lifetime
+ *
+ * The returned pointer is a borrowed reference to data owned by the command.
+ * It must NOT be freed with KoiCompositeDict_Del. The pointer is only valid
+ * as long as the command object exists and is not modified or destroyed.
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index (0-based)
+ *
+ * # Returns
+ * Pointer to composite dict parameter, or null on error:
+ * - null if command is null
+ * - null if index is out of bounds
+ * - null if parameter at index is not a dictionary
+ *
+ * # Safety
+ * The command pointer must be either null or point to a valid KoiCommand object.
+ * The returned pointer must NOT be freed with KoiCompositeDict_Del as it is owned by the command.
+ * The returned pointer becomes invalid if the command is destroyed or modified.
+ *
+ * # Deprecated
+ *
+ * This function is deprecated in favor of `KoiCommand_BorrowCompositeDict` which has
+ * a clearer name indicating the borrowing semantics. Use `KoiCommand_BorrowCompositeDict`
+ * for new code.
+ */
+struct KoiCompositeDict *KoiCommand_GetCompositeDict(struct KoiCommand *command, uintptr_t index);
+
+/**
+ * Borrow composite dict parameter from command
+ *
+ * Retrieves a borrowed reference to a dictionary parameter from a command.
  * The parameter must be of dictionary type, otherwise null is returned.
  *
  * # Ownership and Lifetime
@@ -467,7 +502,31 @@ int32_t KoiCommand_AddCompositeDict(struct KoiCommand *command, struct KoiCompos
  * The returned pointer must NOT be freed with KoiCompositeDict_Del as it is owned by the command.
  * The returned pointer becomes invalid if the command is destroyed or modified.
  */
-struct KoiCompositeDict *KoiCommand_GetCompositeDict(struct KoiCommand *command, uintptr_t index);
+struct KoiCompositeDict *KoiCommand_BorrowCompositeDict(struct KoiCommand *command,
+                                                        uintptr_t index);
+
+/**
+ * Clone composite dict parameter from command
+ *
+ * Creates a new copy of a dictionary parameter from a command.
+ * The returned pointer is owned by the caller and must be freed with
+ * `KoiCompositeDict_Del` when no longer needed.
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index (0-based)
+ *
+ * # Returns
+ * Pointer to a new composite dict parameter, or null on error:
+ * - null if command is null
+ * - null if index is out of bounds
+ * - null if parameter at index is not a dictionary
+ *
+ * # Safety
+ * The command pointer must be either null or point to a valid KoiCommand object.
+ * The returned pointer must be freed with `KoiCompositeDict_Del` when no longer needed.
+ */
+struct KoiCompositeDict *KoiCommand_CloneCompositeDict(struct KoiCommand *command, uintptr_t index);
 
 /**
  * Get number of entries in dict
@@ -736,9 +795,47 @@ int32_t KoiCompositeDict_SetBoolValue(struct KoiCompositeDict *dict,
                                       int32_t value);
 
 /**
- * Get composite list parameter from command
+ * Borrow composite list parameter from command
  *
- * This function retrieves a list parameter from a command at the specified index.
+ * This function retrieves a borrowed reference to a list parameter from a command.
+ * The parameter must be of list type, otherwise NULL is returned.
+ *
+ * # Ownership and Lifetime
+ *
+ * The returned pointer is a borrowed reference to data owned by the command.
+ * It must NOT be freed with KoiCompositeList_Del. The pointer is only valid
+ * as long as the command object exists and is not modified or destroyed.
+ *
+ * # Arguments
+ *
+ * * `command` - Pointer to the command object
+ * * `index` - Zero-based index of the parameter to retrieve
+ *
+ * # Returns
+ *
+ * Pointer to the composite list parameter, or NULL if:
+ * - command is NULL
+ * - index is out of bounds
+ * - the parameter at the specified index is not a list
+ *
+ * # Safety
+ *
+ * The `command` pointer must be either NULL or point to a valid KoiCommand object.
+ * The returned pointer must NOT be freed with KoiCompositeList_Del as it is owned by the command.
+ * The returned pointer becomes invalid if the command is destroyed or modified.
+ *
+ * # Deprecated
+ *
+ * This function is deprecated in favor of `KoiCommand_BorrowCompositeList` which has
+ * a clearer name indicating the borrowing semantics. Use `KoiCommand_BorrowCompositeList`
+ * for new code.
+ */
+struct KoiCompositeList *KoiCommand_GetCompositeList(struct KoiCommand *command, uintptr_t index);
+
+/**
+ * Borrow composite list parameter from command
+ *
+ * This function retrieves a borrowed reference to a list parameter from a command.
  * The parameter must be of list type, otherwise NULL is returned.
  *
  * # Ownership and Lifetime
@@ -765,7 +862,34 @@ int32_t KoiCompositeDict_SetBoolValue(struct KoiCompositeDict *dict,
  * The returned pointer must NOT be freed with KoiCompositeList_Del as it is owned by the command.
  * The returned pointer becomes invalid if the command is destroyed or modified.
  */
-struct KoiCompositeList *KoiCommand_GetCompositeList(struct KoiCommand *command, uintptr_t index);
+struct KoiCompositeList *KoiCommand_BorrowCompositeList(struct KoiCommand *command,
+                                                        uintptr_t index);
+
+/**
+ * Clone composite list parameter from command
+ *
+ * This function creates a new copy of a list parameter from a command.
+ * The returned pointer is owned by the caller and must be freed with
+ * `KoiCompositeList_Del` when no longer needed.
+ *
+ * # Arguments
+ *
+ * * `command` - Pointer to the command object
+ * * `index` - Zero-based index of the parameter to clone
+ *
+ * # Returns
+ *
+ * Pointer to a new composite list parameter, or NULL if:
+ * - command is NULL
+ * - index is out of bounds
+ * - the parameter at the specified index is not a list
+ *
+ * # Safety
+ *
+ * The `command` pointer must be either NULL or point to a valid KoiCommand object.
+ * The returned pointer must be freed with `KoiCompositeList_Del` when no longer needed.
+ */
+struct KoiCompositeList *KoiCommand_CloneCompositeList(struct KoiCommand *command, uintptr_t index);
 
 /**
  * Get composite list parameter length
@@ -1514,10 +1638,94 @@ int32_t KoiCommand_SetBoolParameter(struct KoiCommand *command, uintptr_t index,
 struct KoiCompositeSingle *KoiCompositeSingle_New(const char *name);
 
 /**
- * Get composite single parameter from command
+ * Borrow composite single parameter from command
+ *
+ * Retrieves a borrowed reference to a single-value composite parameter from a command.
+ * The parameter must be of single type, otherwise NULL is returned.
+ *
+ * # Ownership and Lifetime
+ *
+ * The returned pointer is a borrowed reference to data owned by the command.
+ * It must NOT be freed with KoiCompositeSingle_Del. The pointer is only valid
+ * as long as the command object exists and is not modified or destroyed.
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index (0-based)
+ *
+ * # Returns
+ * Pointer to composite single parameter, or NULL on error:
+ * - NULL if command is NULL
+ * - NULL if index is out of bounds
+ * - NULL if parameter at index is not a single-value composite
+ *
+ * # Safety
+ * The command pointer must be either NULL or point to a valid KoiCommand object.
+ * The returned pointer must NOT be freed with KoiCompositeSingle_Del as it is owned by the command.
+ * The returned pointer becomes invalid if the command is destroyed or modified.
+ *
+ * # Deprecated
+ *
+ * This function is deprecated in favor of `KoiCommand_BorrowCompositeSingle` which has
+ * a clearer name indicating the borrowing semantics. Use `KoiCommand_BorrowCompositeSingle`
+ * for new code.
  */
 struct KoiCompositeSingle *KoiCommand_GetCompositeSingle(struct KoiCommand *command,
                                                          uintptr_t index);
+
+/**
+ * Borrow composite single parameter from command
+ *
+ * Retrieves a borrowed reference to a single-value composite parameter from a command.
+ * The parameter must be of single type, otherwise NULL is returned.
+ *
+ * # Ownership and Lifetime
+ *
+ * The returned pointer is a borrowed reference to data owned by the command.
+ * It must NOT be freed with KoiCompositeSingle_Del. The pointer is only valid
+ * as long as the command object exists and is not modified or destroyed.
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index (0-based)
+ *
+ * # Returns
+ * Pointer to composite single parameter, or NULL on error:
+ * - NULL if command is NULL
+ * - NULL if index is out of bounds
+ * - NULL if parameter at index is not a single-value composite
+ *
+ * # Safety
+ * The command pointer must be either NULL or point to a valid KoiCommand object.
+ * The returned pointer must NOT be freed with KoiCompositeSingle_Del as it is owned by the command.
+ * The returned pointer becomes invalid if the command is destroyed or modified.
+ */
+struct KoiCompositeSingle *KoiCommand_BorrowCompositeSingle(struct KoiCommand *command,
+                                                            uintptr_t index);
+
+/**
+ * Clone composite single parameter from command
+ *
+ * Creates a new copy of a single-value composite parameter from a command.
+ * The returned pointer is owned by the caller and must be freed with
+ * `KoiCompositeSingle_Del` when no longer needed.
+ *
+ * # Arguments
+ * * `command` - Command object pointer
+ * * `index` - Parameter index (0-based)
+ *
+ * # Returns
+ * Pointer to a new composite single parameter, or NULL on error:
+ * - NULL if command is NULL
+ * - NULL if index is out of bounds
+ * - NULL if parameter at index is not a single-value composite
+ *
+ * # Safety
+ * The command pointer must be either NULL or point to a valid KoiCommand object.
+ * The returned pointer must be freed with `KoiCompositeSingle_Del` when no longer needed.
+ */
+struct KoiCompositeSingle *KoiCommand_CloneCompositeSingle(struct KoiCommand *command,
+                                                           uintptr_t index);
 
 /**
  * Free composite single parameter

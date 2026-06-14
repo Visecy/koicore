@@ -118,8 +118,8 @@ impl fmt::Display for Value {
                             '\n' => write!(f, "\\n")?,
                             '\r' => write!(f, "\\r")?,
                             '\t' => write!(f, "\\t")?,
-                            // We don't strictly need to escape other control chars for valid parsing,
-                            // but we could. For now, just basic text escapes.
+                            '\x07' => write!(f, "\\a")?,  // BEL
+                            '\x1B' => write!(f, "\\e")?,  // ESC
                             c => write!(f, "{}", c)?,
                         }
                     }
