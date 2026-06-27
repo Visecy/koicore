@@ -557,3 +557,122 @@ fn test_write_special_strings() {
         panic!("Wrong type for empty string");
     }
 }
+
+// ============================================================================
+// Round-trip tests for @text / @annotation newline escaping
+// ============================================================================
+
+/// Helper: write a text command, parse it back, return the parsed command.
+fn round_trip_text(content: &str, preserve_indent: bool) -> Command {
+    let original = Command::new_text(content.to_string());
+    let writer_config = WriterConfig::default();
+    let mut output = Vec::new();
+    let mut writer = Writer::new(&mut output, writer_config);
+    writer
+        .write_command(&original)
+        .expect("Failed to write @text command");
+    let generated = String::from_utf8(output).unwrap();
+
+    let parser_config = ParserConfig::default().with_preserve_indent(preserve_indent);
+    let input = StringInputSource::new(generated.as_str());
+    let mut parser = Parser::new(input, parser_config);
+
+    parser
+        .next_command()
+        .expect("Failed to parse generated @text")
+        .expect("No command parsed from generated @text output")
+}
+
+/// Helper: write an annotation command, parse it back, return the parsed command.
+fn round_trip_annotation(content: &str) -> Command {
+    let original = Command::new_annotation(content.to_string());
+    let writer_config = WriterConfig::default();
+    let mut output = Vec::new();
+    let mut writer = Writer::new(&mut output, writer_config);
+    writer
+        .write_command(&original)
+        .expect("Failed to write @annotation command");
+    let generated = String::from_utf8(output).unwrap();
+
+    let parser_config = ParserConfig::default();
+    let input = StringInputSource::new(generated.as_str());
+    let mut parser = Parser::new(input, parser_config);
+
+    parser
+        .next_command()
+        .expect("Failed to parse generated @annotation")
+        .expect("No command parsed from generated @annotation output")
+}
+
+#[test]
+fn test_text_round_trip_mid_newline() {
+    // Content with newline in the middle
+    let parsed = round_trip_text("Hello\nWorld", false);
+    assert_eq!(parsed, Command::new_text("Hello\nWorld".to_string()));
+}
+
+#[test]
+fn test_text_round_trip_trailing_newline() {
+    // Trailing newline is trimmed by the parser (existing behavior), but
+    // no spurious backslash should remain.
+    let parsed = round_trip_text("Hello\n", false);
+    assert_eq!(parsed, Command::new_text("Hello".to_string()));
+}
+
+#[test]
+fn test_text_round_trip_backslash_plus_newline() {
+    // Content containing a backslash followed by a newline.
+    // The writer prepends another backslash; the parser strips only the
+    // backslash immediately before the newline, leaving the user's backslash.
+    let parsed = round_trip_text("Hello\\\nWorld", false);
+    assert_eq!(parsed, Command::new_text("Hello\\\nWorld".to_string()));
+}
+
+#[test]
+fn test_text_round_trip_two_backslashes_plus_newline() {
+    // Two backslashes followed by a newline.
+    let parsed = round_trip_text("Hello\\\\\nWorld", false);
+    assert_eq!(parsed, Command::new_text("Hello\\\\\nWorld".to_string()));
+}
+
+#[test]
+fn test_annotation_round_trip_mid_newline() {
+    let parsed = round_trip_annotation("Hello\nWorld");
+    assert_eq!(
+        parsed,
+        Command::new_annotation("Hello\nWorld".to_string())
+    );
+}
+
+#[test]
+fn test_annotation_round_trip_trailing_newline() {
+    // Trailing newline trimmed, no spurious backslash
+    let parsed = round_trip_annotation("Hello\n");
+    assert_eq!(parsed, Command::new_annotation("Hello".to_string()));
+}
+
+#[test]
+fn test_annotation_round_trip_backslash_plus_newline() {
+    let parsed = round_trip_annotation("Hello\\\nWorld");
+    assert_eq!(
+        parsed,
+        Command::new_annotation("Hello\\\nWorld".to_string())
+    );
+}
+
+#[test]
+fn test_annotation_round_trip_two_backslashes_plus_newline() {
+    let parsed = round_trip_annotation("Hello\\\\\nWorld");
+    assert_eq!(
+        parsed,
+        Command::new_annotation("Hello\\\\\nWorld".to_string())
+    );
+}
+
+#[test]
+fn test_text_round_trip_preserve_indent() {
+    // With preserve_indent=true, leading indentation is preserved.
+    // Mid-content newline keeps internal indentation.
+    let parsed = round_trip_text("  Hello\n  World", true);
+    assert_eq!(parsed, Command::new_text("  Hello\n  World".to_string()));
+}
