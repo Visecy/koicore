@@ -11,6 +11,18 @@ use crate::writer::NumberFormat;
 use std::collections::HashMap;
 use std::io::Write;
 
+/// Escape newlines in raw text/annotation content by prepending a backslash.
+///
+/// Each `\n` in the input becomes `\<newline>` (backslash + newline). This
+/// allows text with embedded newlines to be written as a single logical line
+/// that `Input::next_line` reassembles via its existing line-continuation rule.
+///
+/// Backslash characters themselves are NOT escaped — the parser strips only
+/// the backslash immediately preceding a newline, leaving all others intact.
+pub(crate) fn escape_text_newlines(s: &str) -> String {
+    s.replace('\n', "\\\n")
+}
+
 /// Command generation utilities
 pub struct Generators;
 
@@ -45,21 +57,27 @@ impl Generators {
     ) -> std::io::Result<()> {
         match command.name.as_str() {
             "@text" => {
-                // Text command - just write the text as is
+                // Raw text command — escape newlines so the content stays on
+                // one logical line. The parser's unescape_text_newlines
+                // reverses this. Unlike regular params, @text content is not
+                // a quoted string, so format_string does not apply here.
                 if let Some(Parameter::Basic(Value::String(text))) = command.params.first() {
-                    write!(writer, "{}", text)?;
+                    write!(writer, "{}", escape_text_newlines(text))?;
                 }
             }
             "@annotation" => {
-                // Annotation command - write with extra # characters
+                // Raw annotation command — same newline-escape rule as @text.
+                // The leading-# check uses the original text (escaping does not
+                // affect `#` characters).
                 if let Some(Parameter::Basic(Value::String(text))) = command.params.first() {
                     let hashes = "#".repeat(config.command_threshold + 1);
+                    let escaped = escape_text_newlines(text);
                     if text.trim_start().starts_with(&hashes) {
                         // If text already has enough #, just write it
-                        write!(writer, "{}", text)?;
+                        write!(writer, "{}", escaped)?;
                     } else {
                         // Otherwise, add extra #
-                        write!(writer, "{} {}", hashes, text)?;
+                        write!(writer, "{} {}", hashes, escaped)?;
                     }
                 }
             }
@@ -723,6 +741,35 @@ mod tests {
 
         let result = String::from_utf8(buffer).unwrap();
         assert_eq!(result, "#123 extra");
+    }
+
+    #[test]
+    fn test_escape_text_newlines() {
+        // No newlines - unchanged
+        assert_eq!(escape_text_newlines("Hello"), "Hello");
+
+        // Single newline in middle: \n becomes \<newline>
+        assert_eq!(escape_text_newlines("Hello\nWorld"), "Hello\\\nWorld");
+
+        // Trailing newline: \n becomes \<newline>
+        assert_eq!(escape_text_newlines("Hello\n"), "Hello\\\n");
+
+        // Leading newline: \n becomes \<newline>
+        assert_eq!(escape_text_newlines("\nHello"), "\\\nHello");
+
+        // Multiple newlines: each \n becomes \<newline>
+        assert_eq!(escape_text_newlines("a\nb\nc"), "a\\\nb\\\nc");
+
+        // Existing backslash + newline: backslash preserved, newline gets
+        // another backslash prepended → two backslashes + newline
+        assert_eq!(escape_text_newlines("Hello\\\nWorld"), "Hello\\\\\nWorld");
+
+        // Two existing backslashes + newline: preserved + one more → three
+        // backslashes + newline
+        assert_eq!(escape_text_newlines("Hello\\\\\nWorld"), "Hello\\\\\\\nWorld");
+
+        // Empty string - unchanged
+        assert_eq!(escape_text_newlines(""), "");
     }
 
     #[test]
