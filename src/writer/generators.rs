@@ -19,8 +19,22 @@ use std::io::Write;
 ///
 /// Backslash characters themselves are NOT escaped — the parser strips only
 /// the backslash immediately preceding a newline, leaving all others intact.
+///
+/// If the content ends with a backslash, an extra backslash is appended so the
+/// writer's trailing newline (from `writeln!`) does not create a bare
+/// `\<newline>` continuation that the parser would strip. The extra backslash
+/// is reversed by `unescape_text_newlines` naturally.
 pub(crate) fn escape_text_newlines(s: &str) -> String {
-    s.replace('\n', "\\\n")
+    let mut result = s.replace('\n', "\\\n");
+    // If the content ends with a backslash, append another one so the writer's
+    // trailing newline (added by writeln!) does not create a bare \<newline>
+    // continuation that unescape_text_newlines would strip. The extra backslash
+    // is naturally reversed by unescape_text_newlines (it strips exactly one
+    // backslash before each newline).
+    if result.ends_with('\\') {
+        result.push('\\');
+    }
+    result
 }
 
 /// Command generation utilities
@@ -767,6 +781,16 @@ mod tests {
         // Two existing backslashes + newline: preserved + one more → three
         // backslashes + newline
         assert_eq!(escape_text_newlines("Hello\\\\\nWorld"), "Hello\\\\\\\nWorld");
+
+        // Trailing backslash (no newline): gets an extra backslash appended
+        assert_eq!(escape_text_newlines("Hello\\"), "Hello\\\\");
+
+        // Two trailing backslashes: get one more appended
+        assert_eq!(escape_text_newlines("Hello\\\\"), "Hello\\\\\\");
+
+        // Trailing backslash after escaped newline: the \n is escaped first,
+        // then the trailing \ gets an extra one
+        assert_eq!(escape_text_newlines("Hello\\\n\\"), "Hello\\\\\n\\\\");
 
         // Empty string - unchanged
         assert_eq!(escape_text_newlines(""), "");

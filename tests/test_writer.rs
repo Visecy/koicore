@@ -676,3 +676,26 @@ fn test_text_round_trip_preserve_indent() {
     let parsed = round_trip_text("  Hello\n  World", true);
     assert_eq!(parsed, Command::new_text("  Hello\n  World".to_string()));
 }
+
+#[test]
+fn test_text_round_trip_trailing_backslash() {
+    // Content ending with a single backslash (no trailing newline).
+    // The writer appends an extra backslash to prevent the trailing newline
+    // from being interpreted as a line continuation.
+    let parsed = round_trip_text("Hello\\", false);
+    assert_eq!(parsed, Command::new_text("Hello\\".to_string()));
+}
+
+#[test]
+fn test_text_round_trip_two_trailing_backslashes() {
+    // Content ending with two backslashes.
+    let parsed = round_trip_text("Hello\\\\", false);
+    assert_eq!(parsed, Command::new_text("Hello\\\\".to_string()));
+}
+
+#[test]
+fn test_annotation_round_trip_trailing_backslash() {
+    // Annotation content ending with a backslash.
+    let parsed = round_trip_annotation("Hello\\");
+    assert_eq!(parsed, Command::new_annotation("Hello\\".to_string()));
+}
