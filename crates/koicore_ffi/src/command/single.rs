@@ -42,9 +42,72 @@ pub unsafe extern "C" fn KoiCompositeSingle_New(name: *const c_char) -> *mut Koi
     Box::into_raw(Box::new(param)) as *mut KoiCompositeSingle
 }
 
-/// Get composite single parameter from command
+/// Borrow composite single parameter from command
+///
+/// Retrieves a borrowed reference to a single-value composite parameter from a command.
+/// The parameter must be of single type, otherwise NULL is returned.
+///
+/// # Ownership and Lifetime
+///
+/// The returned pointer is a borrowed reference to data owned by the command.
+/// It must NOT be freed with KoiCompositeSingle_Del. The pointer is only valid
+/// as long as the command object exists and is not modified or destroyed.
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index (0-based)
+///
+/// # Returns
+/// Pointer to composite single parameter, or NULL on error:
+/// - NULL if command is NULL
+/// - NULL if index is out of bounds
+/// - NULL if parameter at index is not a single-value composite
+///
+/// # Safety
+/// The command pointer must be either NULL or point to a valid KoiCommand object.
+/// The returned pointer must NOT be freed with KoiCompositeSingle_Del as it is owned by the command.
+/// The returned pointer becomes invalid if the command is destroyed or modified.
+///
+/// # Deprecated
+///
+/// This function is deprecated in favor of `KoiCommand_BorrowCompositeSingle` which has
+/// a clearer name indicating the borrowing semantics. Use `KoiCommand_BorrowCompositeSingle`
+/// for new code.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn KoiCommand_GetCompositeSingle(
+    command: *mut KoiCommand,
+    index: usize,
+) -> *mut KoiCompositeSingle {
+    unsafe { KoiCommand_BorrowCompositeSingle(command, index) }
+}
+
+/// Borrow composite single parameter from command
+///
+/// Retrieves a borrowed reference to a single-value composite parameter from a command.
+/// The parameter must be of single type, otherwise NULL is returned.
+///
+/// # Ownership and Lifetime
+///
+/// The returned pointer is a borrowed reference to data owned by the command.
+/// It must NOT be freed with KoiCompositeSingle_Del. The pointer is only valid
+/// as long as the command object exists and is not modified or destroyed.
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index (0-based)
+///
+/// # Returns
+/// Pointer to composite single parameter, or NULL on error:
+/// - NULL if command is NULL
+/// - NULL if index is out of bounds
+/// - NULL if parameter at index is not a single-value composite
+///
+/// # Safety
+/// The command pointer must be either NULL or point to a valid KoiCommand object.
+/// The returned pointer must NOT be freed with KoiCompositeSingle_Del as it is owned by the command.
+/// The returned pointer becomes invalid if the command is destroyed or modified.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_BorrowCompositeSingle(
     command: *mut KoiCommand,
     index: usize,
 ) -> *mut KoiCompositeSingle {
@@ -62,6 +125,53 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeSingle(
     match &params[index] {
         p @ &Parameter::Composite(_, CompositeValue::Single(_)) => {
             p as *const Parameter as *mut KoiCompositeSingle
+        }
+        _ => ptr::null_mut(),
+    }
+}
+
+/// Clone composite single parameter from command
+///
+/// Creates a new copy of a single-value composite parameter from a command.
+/// The returned pointer is owned by the caller and must be freed with
+/// `KoiCompositeSingle_Del` when no longer needed.
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index (0-based)
+///
+/// # Returns
+/// Pointer to a new composite single parameter, or NULL on error:
+/// - NULL if command is NULL
+/// - NULL if index is out of bounds
+/// - NULL if parameter at index is not a single-value composite
+///
+/// # Safety
+/// The command pointer must be either NULL or point to a valid KoiCommand object.
+/// The returned pointer must be freed with `KoiCompositeSingle_Del` when no longer needed.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_CloneCompositeSingle(
+    command: *mut KoiCommand,
+    index: usize,
+) -> *mut KoiCompositeSingle {
+    if command.is_null() {
+        return ptr::null_mut();
+    }
+
+    let command = unsafe { &*(command as *mut Command) };
+    let params = command.params();
+
+    if index >= params.len() {
+        return ptr::null_mut();
+    }
+
+    match &params[index] {
+        Parameter::Composite(name, CompositeValue::Single(value)) => {
+            let cloned = Parameter::Composite(
+                name.clone(),
+                CompositeValue::Single(value.clone()),
+            );
+            Box::into_raw(Box::new(cloned)) as *mut KoiCompositeSingle
         }
         _ => ptr::null_mut(),
     }

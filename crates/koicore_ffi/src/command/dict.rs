@@ -90,9 +90,48 @@ pub unsafe extern "C" fn KoiCommand_AddCompositeDict(
     0
 }
 
-/// Get composite dict parameter from command
+/// Borrow composite dict parameter from command
 ///
-/// Retrieves a dictionary parameter from a command at the specified index.
+/// Retrieves a borrowed reference to a dictionary parameter from a command.
+/// The parameter must be of dictionary type, otherwise null is returned.
+///
+/// # Ownership and Lifetime
+///
+/// The returned pointer is a borrowed reference to data owned by the command.
+/// It must NOT be freed with KoiCompositeDict_Del. The pointer is only valid
+/// as long as the command object exists and is not modified or destroyed.
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index (0-based)
+///
+/// # Returns
+/// Pointer to composite dict parameter, or null on error:
+/// - null if command is null
+/// - null if index is out of bounds
+/// - null if parameter at index is not a dictionary
+///
+/// # Safety
+/// The command pointer must be either null or point to a valid KoiCommand object.
+/// The returned pointer must NOT be freed with KoiCompositeDict_Del as it is owned by the command.
+/// The returned pointer becomes invalid if the command is destroyed or modified.
+///
+/// # Deprecated
+///
+/// This function is deprecated in favor of `KoiCommand_BorrowCompositeDict` which has
+/// a clearer name indicating the borrowing semantics. Use `KoiCommand_BorrowCompositeDict`
+/// for new code.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_GetCompositeDict(
+    command: *mut KoiCommand,
+    index: usize,
+) -> *mut KoiCompositeDict {
+    unsafe { KoiCommand_BorrowCompositeDict(command, index) }
+}
+
+/// Borrow composite dict parameter from command
+///
+/// Retrieves a borrowed reference to a dictionary parameter from a command.
 /// The parameter must be of dictionary type, otherwise null is returned.
 ///
 /// # Ownership and Lifetime
@@ -116,7 +155,7 @@ pub unsafe extern "C" fn KoiCommand_AddCompositeDict(
 /// The returned pointer must NOT be freed with KoiCompositeDict_Del as it is owned by the command.
 /// The returned pointer becomes invalid if the command is destroyed or modified.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn KoiCommand_GetCompositeDict(
+pub unsafe extern "C" fn KoiCommand_BorrowCompositeDict(
     command: *mut KoiCommand,
     index: usize,
 ) -> *mut KoiCompositeDict {
@@ -135,6 +174,53 @@ pub unsafe extern "C" fn KoiCommand_GetCompositeDict(
         p @ &Parameter::Composite(_, CompositeValue::Dict(_)) => {
             // Cast the parameter reference to the opaque dict type
             p as *const Parameter as *mut KoiCompositeDict
+        }
+        _ => ptr::null_mut(),
+    }
+}
+
+/// Clone composite dict parameter from command
+///
+/// Creates a new copy of a dictionary parameter from a command.
+/// The returned pointer is owned by the caller and must be freed with
+/// `KoiCompositeDict_Del` when no longer needed.
+///
+/// # Arguments
+/// * `command` - Command object pointer
+/// * `index` - Parameter index (0-based)
+///
+/// # Returns
+/// Pointer to a new composite dict parameter, or null on error:
+/// - null if command is null
+/// - null if index is out of bounds
+/// - null if parameter at index is not a dictionary
+///
+/// # Safety
+/// The command pointer must be either null or point to a valid KoiCommand object.
+/// The returned pointer must be freed with `KoiCompositeDict_Del` when no longer needed.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn KoiCommand_CloneCompositeDict(
+    command: *mut KoiCommand,
+    index: usize,
+) -> *mut KoiCompositeDict {
+    if command.is_null() {
+        return ptr::null_mut();
+    }
+
+    let command = unsafe { &*(command as *mut Command) };
+    let params = command.params();
+
+    if index >= params.len() {
+        return ptr::null_mut();
+    }
+
+    match &params[index] {
+        Parameter::Composite(name, CompositeValue::Dict(entries)) => {
+            let cloned = Parameter::Composite(
+                name.clone(),
+                CompositeValue::Dict(entries.clone()),
+            );
+            Box::into_raw(Box::new(cloned)) as *mut KoiCompositeDict
         }
         _ => ptr::null_mut(),
     }

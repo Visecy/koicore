@@ -40,6 +40,18 @@ pub use traceback::TracebackEntry;
 use input::Input;
 use traceback::NomErrorNode;
 
+/// Reverse the writer's newline escaping for `@text` / `@annotation` content.
+///
+/// Each `\<newline>` (backslash + newline) becomes `<newline>` (just newline).
+/// Only the backslash immediately preceding a newline is stripped; all other
+/// backslashes are preserved verbatim.
+///
+/// This must be called BEFORE `trim_end` / `trim` on the accumulated `line_text`
+/// to avoid leaving a dangling backslash when the content ends with a newline.
+fn unescape_text_newlines(s: &str) -> String {
+    s.replace("\\\n", "\n")
+}
+
 /// Configuration for the line processor
 ///
 /// Controls how the parser interprets different types of lines in the input.
@@ -322,20 +334,27 @@ impl<T: TextInputSource> Parser<T> {
             let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
 
             if hash_count < self.config.command_threshold {
+                // Unescape newlines BEFORE trim to avoid dangling backslashes.
+                // The writer's escape_text_newlines prepended a \ before each
+                // newline in the original content; this reverses that.
+                let unescaped = unescape_text_newlines(&line_text);
                 let text_content = if self.config.preserve_indent {
-                    line_text.trim_end().to_string()
+                    unescaped.trim_end().to_string()
                 } else {
-                    trimmed.to_string()
+                    unescaped.trim().to_string()
                 };
                 break Ok(Some((Command::new_text(text_content), source)));
             } else if hash_count > self.config.command_threshold {
                 if self.config.skip_annotations {
                     continue;
                 }
+                // hash_count from pre-unescape trimmed is still valid: `#` is
+                // unaffected by newline unescaping.
+                let unescaped = unescape_text_newlines(&line_text);
                 let annotation_content = if self.config.preserve_indent {
-                    line_text.trim_end().to_string()
+                    unescaped.trim_end().to_string()
                 } else {
-                    let content: String = trimmed.chars().skip(hash_count).collect();
+                    let content: String = unescaped.trim().chars().skip(hash_count).collect();
                     content.trim().to_string()
                 };
                 break Ok(Some((Command::new_annotation(annotation_content), source)));
@@ -776,5 +795,36 @@ mod tests {
         let (cmd, source) = parser.next_command_with_source().unwrap().unwrap();
         assert_eq!(cmd.name(), "cmd2");
         assert_eq!(source.lineno, 3);
+    }
+
+    #[test]
+    fn test_unescape_text_newlines() {
+        // No escape sequences - unchanged
+        assert_eq!(unescape_text_newlines("Hello"), "Hello");
+
+        // Backslash + newline → newline
+        assert_eq!(unescape_text_newlines("Hello\\\nWorld"), "Hello\nWorld");
+
+        // Trailing backslash + newline → trailing newline
+        assert_eq!(unescape_text_newlines("Hello\\\n"), "Hello\n");
+
+        // Leading backslash + newline → leading newline
+        assert_eq!(unescape_text_newlines("\\\nHello"), "\nHello");
+
+        // Multiple escape sequences
+        assert_eq!(unescape_text_newlines("a\\\nb\\\nc"), "a\nb\nc");
+
+        // Two backslashes + newline → one backslash + newline
+        // (only the backslash immediately preceding the newline is stripped)
+        assert_eq!(unescape_text_newlines("Hello\\\\\nWorld"), "Hello\\\nWorld");
+
+        // Three backslashes + newline → two backslashes + newline
+        assert_eq!(unescape_text_newlines("Hello\\\\\\\nWorld"), "Hello\\\\\nWorld");
+
+        // Plain newline (no preceding backslash) - unchanged
+        assert_eq!(unescape_text_newlines("Hello\nWorld"), "Hello\nWorld");
+
+        // Empty string - unchanged
+        assert_eq!(unescape_text_newlines(""), "");
     }
 }
