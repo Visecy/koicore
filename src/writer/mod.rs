@@ -116,6 +116,18 @@ impl<T: Write> Writer<T> {
     }
 }
 
+impl<T: Write> AsRef<T> for Writer<T> {
+    fn as_ref(&self) -> &T {
+        &self.writer
+    }
+}
+
+impl<T: Write> AsMut<T> for Writer<T> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut self.writer
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
