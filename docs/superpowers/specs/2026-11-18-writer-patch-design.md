@@ -58,7 +58,7 @@ Given an existing KoiLang source text and a set of whole-line edits (replace, in
 | File | Action | Responsibility |
 |---|---|---|
 | `src/writer/patch.rs` | **Create** | Line/logical-line splitting, anchor resolution, validation, conflict detection, emission, `Patch*` types, `Writer::write_patched`, `apply_patch*` helpers, unit tests. |
-| `src/writer/mod.rs` | Modify | `mod patch;` + re-exports; add `pub(crate)` rendering helper used by both `write_command` and patch emission **without behavior change**. |
+| `src/writer/mod.rs` | Modify | `mod patch;` + re-exports. Existing `write_command` behavior unchanged. |
 | `src/lib.rs` | Modify | Re-export `Patch`, `Anchor`, `Edit`, `PatchError`, `apply_patch` at crate root. |
 | `tests/test_patch.rs` | **Create** | Integration tests: write → patch → re-parse round trips, CRLF/BOM/EOF preservation, command anchors, strict/lenient behavior. |
 | `README.md`, `README_cn.md` | Modify | Add a "Patch existing documents" feature bullet. |
@@ -334,15 +334,13 @@ Separator/terminator rules:
 
 #### Rendering new commands
 
-A new `pub(crate)` helper on `Writer` is shared by `write_command` and patch emission:
+A crate-private helper in `patch.rs` renders a command for patch emission. The existing `write_command` path is untouched:
 
 ```rust
-impl<T: Write> Writer<T> {
-    /// Render one command as patch line content: no leading indentation,
-    /// no trailing newline. Patch mode disables line-breaking formatter
-    /// options so one command always becomes one (logical) line.
-    pub(crate) fn render_patch_command(&self, command: &Command) -> String;
-}
+/// Render one command as patch line content: no leading indentation,
+/// no trailing newline. Patch mode disables line-breaking formatter
+/// options so one command always becomes one (logical) line.
+pub(crate) fn render_command(config: &WriterConfig, command: &Command) -> std::io::Result<String>;
 ```
 
 - Resolve effective options with `Generators::get_effective_options` (the writer's `WriterConfig`, unchanged).
@@ -350,7 +348,7 @@ impl<T: Write> Writer<T> {
 - Render the command body through `Generators::write_command_with_param_options` with `current_indent = 0` into a `Vec<u8>`, then convert to `String`. `@text` / `@annotation` newline escaping is inherited from the existing generator, so raw text with embedded newlines still serializes as one logical line.
 - The caller prefixes the indent and appends the file EOL. For `@text`/`@annotation`, the escaped continuation lines are intrinsic to the content and receive no extra prefix (only the leading indent is added before the first line). Replacing `\n` with the detected EOL inside the body is safe because the parser's `FileInputSource`/`BufReadWrapper` normalize `\r\n` to `\n` before the continuation/unescape logic runs.
 
-`Generators::get_effective_options` and `write_command_with_param_options` are private to the `writer` module; `patch` is a child module, so no visibility change is needed. `Writer::write_command_with_options` is refactored only enough to share the helper; its output and state effects must remain identical (covered by existing tests).
+`Generators::get_effective_options` and `write_command_with_param_options` are private to the `writer` module; `patch` is a child module, so no visibility change is needed. `Writer::write_command_with_options` is not modified; existing behavior is covered by the current tests.
 
 #### Writer integration
 
@@ -441,7 +439,7 @@ make ffi-test
 ## Implementation Outline
 
 1. **Skeleton + line model** — create `src/writer/patch.rs`, `mod patch;` in `writer/mod.rs`, `Patch`/`Anchor`/`Expected`/`Edit`/`PatchEdit`/`PatchOptions`/`PatchError`/`PatchReport`/`PatchWarning`, physical-line and logical-line splitting with BOM, unit tests.
-2. **Render helper** — extract `render_patch_command` in `writer/mod.rs`; verify existing writer tests are unchanged and passing.
+2. **Render helper** — add `render_command` in `patch.rs`; verify existing writer tests are unchanged and passing.
 3. **Anchor resolution + validation** — physical/command anchors, expectations, continuation rules, deterministic error ordering, strict atomicity (no output).
 4. **Emission plan + conflicts + ordering** — conflict table, multi-insert ordering, lenient warnings.
 5. **Emission** — indent policy, EOL detection/override, BOM, EOF convention, `append`, report counters.
