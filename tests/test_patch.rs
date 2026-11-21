@@ -1,11 +1,21 @@
 use koicore::parser::{Parser, ParserConfig, StringInputSource};
 use koicore::writer::{
-    Anchor, ApplyMode, Expected, Patch, PatchError, apply_patch, apply_patch_with_config,
+    Anchor, ApplyMode, Expected, Patch, PatchError, PatchWarning, apply_patch,
+    apply_patch_with_config,
 };
 use koicore::{Command, Parameter, Writer, WriterConfig};
 
 fn cmd(name: &str, params: Vec<&str>) -> Command {
     Command::new(name, params.into_iter().map(Parameter::from).collect())
+}
+
+fn parse_all(source: &str) -> Vec<Command> {
+    let mut parser = Parser::new(StringInputSource::new(source), ParserConfig::default());
+    let mut commands = Vec::new();
+    while let Some((command, _)) = parser.next_command_with_source().unwrap() {
+        commands.push(command);
+    }
+    commands
 }
 
 #[test]
@@ -41,14 +51,21 @@ fn preserves_crlf_and_bom_end_to_end() {
     let source = "\u{feff}#a 1\r\n#b 2\r\n";
     let mut patch = Patch::new();
     patch.replace_line(2, vec![Command::new("c", vec![Parameter::from(3)])]);
-    assert_eq!(apply_patch(source, &patch).unwrap(), "\u{feff}#a 1\r\n#c 3\r\n");
+    assert_eq!(
+        apply_patch(source, &patch).unwrap(),
+        "\u{feff}#a 1\r\n#c 3\r\n"
+    );
 }
 
 #[test]
 fn stale_line_expectation_is_rejected() {
     let source = "#a\n";
     let mut patch = Patch::new();
-    patch.replace_line_checked(1, Expected::Text("#old".to_string()), vec![cmd("b", vec![])]);
+    patch.replace_line_checked(
+        1,
+        Expected::Text("#old".to_string()),
+        vec![cmd("b", vec![])],
+    );
 
     let error = apply_patch(source, &patch).unwrap_err();
     assert!(matches!(
@@ -72,7 +89,10 @@ fn lenient_mode_skips_invalid_edits_and_warns() {
     };
 
     assert_eq!(String::from_utf8(buffer).unwrap(), "#a\n");
-    assert_eq!(report.warnings.len(), 1);
+    assert_eq!(
+        report.warnings,
+        vec![PatchWarning::OutOfRange { edit_index: 0 }]
+    );
 }
 
 #[test]
@@ -84,11 +104,7 @@ fn patched_output_parses_back_to_expected_commands() {
 
     let output = apply_patch(source, &patch).unwrap();
 
-    let mut parser = Parser::new(StringInputSource::new(&output), ParserConfig::default());
-    let mut commands = Vec::new();
-    while let Some((command, _)) = parser.next_command_with_source().unwrap() {
-        commands.push(command);
-    }
+    let commands = parse_all(&output);
 
     assert_eq!(
         commands,
@@ -108,11 +124,7 @@ fn append_to_document_without_trailing_newline_is_parseable() {
     let output = apply_patch(source, &patch).unwrap();
     assert_eq!(output, "#a\n#b");
 
-    let mut parser = Parser::new(StringInputSource::new(&output), ParserConfig::default());
-    let mut commands = Vec::new();
-    while let Some((command, _)) = parser.next_command_with_source().unwrap() {
-        commands.push(command);
-    }
+    let commands = parse_all(&output);
     assert_eq!(commands, vec![cmd("a", vec![]), cmd("b", vec![])]);
 }
 
@@ -128,6 +140,20 @@ fn command_anchor_with_expectation_guards_drift() {
         koicore::writer::Edit::Delete,
     );
     assert_eq!(apply_patch(source, &patch).unwrap(), "#a\n");
+
+    let mut drift_patch = Patch::new();
+    drift_patch.edit(
+        Anchor::Command {
+            index: 1,
+            expect: Some(Command::new("other", Vec::new())),
+        },
+        koicore::writer::Edit::Delete,
+    );
+    let error = apply_patch(source, &drift_patch).unwrap_err();
+    assert!(matches!(
+        error,
+        PatchError::CommandMismatch { index: 1, .. }
+    ));
 }
 
 #[test]
@@ -137,7 +163,11 @@ fn write_patched_matches_apply_patch_with_config() {
     patch.insert_after_line(1, vec![cmd("nested", vec![])]);
     patch.replace_line(3, vec![cmd("b", vec!["x"])]);
 
-    let expected = apply_patch_with_config(source, &patch, &WriterConfig::default()).unwrap();
+    let expected = "    #a\n    #nested\n\r\n#b x\n";
+    assert_eq!(
+        apply_patch_with_config(source, &patch, &WriterConfig::default()).unwrap(),
+        expected
+    );
 
     let mut buffer = Vec::new();
     {
@@ -163,11 +193,7 @@ fn multi_command_insert_round_trips() {
 
     let output = apply_patch(source, &patch).unwrap();
 
-    let mut parser = Parser::new(StringInputSource::new(&output), ParserConfig::default());
-    let mut commands = Vec::new();
-    while let Some((command, _)) = parser.next_command_with_source().unwrap() {
-        commands.push(command);
-    }
+    let commands = parse_all(&output);
 
     assert_eq!(
         commands,
