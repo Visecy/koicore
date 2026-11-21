@@ -834,6 +834,36 @@ fn validate(source: &SourceLines<'_>, patch: &Patch) -> Result<EmissionPlan, Pat
         plan.resolved[edit_index] = Some(group);
     }
 
+    let mut primary_owner: Vec<Option<usize>> = vec![None; source.groups.len()];
+    for (edit_index, patch_edit) in patch.edits.iter().enumerate() {
+        let Some(group) = plan.resolved[edit_index] else {
+            continue;
+        };
+        match &patch_edit.edit {
+            Edit::Replace(_) | Edit::Delete => {
+                if let Some(first_edit) = primary_owner[group] {
+                    if mode == ApplyMode::Strict {
+                        return Err(PatchError::ConflictingEdits {
+                            lineno: source.groups[group].start_lineno,
+                            first_edit,
+                            second_edit: edit_index,
+                        });
+                    }
+                    plan.warnings.push(PatchWarning::Conflict {
+                        edit_index,
+                        owner_edit_index: first_edit,
+                    });
+                    plan.resolved[edit_index] = None;
+                    continue;
+                }
+                primary_owner[group] = Some(edit_index);
+                plan.primary[group] = Some(edit_index);
+            }
+            Edit::InsertBefore(_) => plan.before[group].push(edit_index),
+            Edit::InsertAfter(_) => plan.after[group].push(edit_index),
+        }
+    }
+
     Ok(plan)
 }
 
@@ -1305,5 +1335,88 @@ mod tests {
         let mut patch = Patch::new();
         patch.delete_line(1);
         assert!(validate(&source, &patch).is_ok());
+    }
+
+    #[test]
+    fn duplicate_replace_on_the_same_line_conflicts() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.replace_line(1, vec![cmd("x")]);
+        patch.replace_line(1, vec![cmd("y")]);
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(
+            error,
+            PatchError::ConflictingEdits { lineno: 1, first_edit: 0, second_edit: 1 }
+        ));
+    }
+
+    #[test]
+    fn replace_and_insert_are_allowed_together() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.replace_line(1, vec![cmd("x")]);
+        patch.insert_before_line(1, vec![cmd("before")]);
+        patch.insert_after_line(1, vec![cmd("after")]);
+
+        let plan = validate(&source, &patch).unwrap();
+        assert_eq!(plan.primary[0], Some(0));
+        assert_eq!(plan.before[0], vec![1]);
+        assert_eq!(plan.after[0], vec![2]);
+    }
+
+    #[test]
+    fn insert_order_follows_patch_edit_order() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.insert_after_line(1, vec![cmd("first")]);
+        patch.insert_after_line(1, vec![cmd("second")]);
+
+        let plan = validate(&source, &patch).unwrap();
+        assert_eq!(plan.after[0], vec![0, 1]);
+    }
+
+    #[test]
+    fn delete_and_insert_are_allowed_together() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.delete_line(1);
+        patch.insert_after_line(1, vec![cmd("after")]);
+
+        let plan = validate(&source, &patch).unwrap();
+        assert!(matches!(&patch.edits()[0].edit, Edit::Delete));
+        assert_eq!(plan.primary[0], Some(0));
+        assert_eq!(plan.after[0], vec![1]);
+    }
+
+    #[test]
+    fn lenient_mode_skips_conflicting_edit_with_warning() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.options_mut().mode = ApplyMode::Lenient;
+        patch.replace_line(1, vec![cmd("first")]);
+        patch.replace_line(1, vec![cmd("second")]);
+
+        let plan = validate(&source, &patch).unwrap();
+        assert_eq!(plan.primary[0], Some(0));
+        assert_eq!(plan.resolved, vec![Some(0), None]);
+        assert_eq!(
+            plan.warnings,
+            vec![PatchWarning::Conflict { edit_index: 1, owner_edit_index: 0 }]
+        );
+    }
+
+    #[test]
+    fn line_and_command_anchors_on_the_same_line_conflict() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.delete_line(1);
+        patch.delete_command(0);
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(
+            error,
+            PatchError::ConflictingEdits { lineno: 1, first_edit: 0, second_edit: 1 }
+        ));
     }
 }
