@@ -10,6 +10,9 @@ use std::io;
 use crate::command::Command;
 use crate::parser::ParserConfig;
 
+use super::WriterConfig;
+use super::generators::Generators;
+
 /// How a patch edit locates its target.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Anchor {
@@ -569,10 +572,29 @@ impl<'a> SourceLines<'a> {
     }
 }
 
+/// Render one command as patch line content: no leading indentation, no trailing
+/// newline. Line-breaking formatter options are disabled so one command always
+/// becomes one logical line.
+pub(crate) fn render_command(config: &WriterConfig, command: &Command) -> io::Result<String> {
+    let mut options = Generators::get_effective_options(&command.name, None, config);
+    options.newline_before = false;
+    options.newline_after = false;
+    options.newline_before_param = false;
+    options.newline_after_param = false;
+
+    let mut buffer = Vec::new();
+    Generators::write_command_with_param_options(&mut buffer, command, config, &options, None, 0)?;
+    String::from_utf8(buffer).map_err(|_| {
+        io::Error::new(io::ErrorKind::InvalidData, "writer produced non-UTF-8 output")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::command::Command;
+    use crate::command::Parameter;
+    use crate::writer::{FormatterOptions, NumberFormat};
 
     fn cmd(name: &str) -> Command {
         Command::new(name, Vec::new())
@@ -715,5 +737,74 @@ mod tests {
         assert_eq!(source.resolved_newline(NewlineStyle::Auto), "\r\n");
         assert_eq!(source.resolved_newline(NewlineStyle::Lf), "\n");
         assert_eq!(source.resolved_newline(NewlineStyle::Crlf), "\r\n");
+    }
+
+    #[test]
+    fn renders_regular_command_inline() {
+        let command = Command::new(
+            "character",
+            vec![Parameter::from("Alice"), Parameter::from("Hello, world!")],
+        );
+        let rendered = render_command(&WriterConfig::default(), &command).unwrap();
+        assert_eq!(rendered, "#character Alice \"Hello, world!\"");
+    }
+
+    #[test]
+    fn renders_raw_text_with_escaped_newlines() {
+        let command = Command::new_text("Hello\nWorld");
+        let rendered = render_command(&WriterConfig::default(), &command).unwrap();
+        assert_eq!(rendered, "Hello\\\nWorld");
+    }
+
+    #[test]
+    fn renders_annotation_and_number_commands() {
+        let config = WriterConfig::default();
+        assert_eq!(
+            render_command(&config, &Command::new_annotation("note")).unwrap(),
+            "## note"
+        );
+        assert_eq!(
+            render_command(&config, &Command::new_number(42, Vec::new())).unwrap(),
+            "#42"
+        );
+    }
+
+    #[test]
+    fn honors_number_format_configuration() {
+        let mut command_options = std::collections::HashMap::new();
+        command_options.insert(
+            "hex".to_string(),
+            FormatterOptions {
+                number_format: NumberFormat::Hex,
+                ..Default::default()
+            },
+        );
+        let config = WriterConfig {
+            command_options,
+            ..Default::default()
+        };
+        let command = Command::new("hex", vec![Parameter::from(42)]);
+        assert_eq!(render_command(&config, &command).unwrap(), "#hex 0x2a");
+    }
+
+    #[test]
+    fn ignores_line_breaking_options() {
+        let mut command_options = std::collections::HashMap::new();
+        command_options.insert(
+            "split".to_string(),
+            FormatterOptions {
+                newline_after_param: true,
+                newline_before_param: true,
+                ..Default::default()
+            },
+        );
+        let config = WriterConfig {
+            command_options,
+            ..Default::default()
+        };
+        let command = Command::new("split", vec![Parameter::from("a"), Parameter::from("b")]);
+        let rendered = render_command(&config, &command).unwrap();
+        assert_eq!(rendered, "#split a b");
+        assert!(!rendered.contains('\n'));
     }
 }
