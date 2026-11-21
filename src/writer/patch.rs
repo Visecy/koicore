@@ -126,7 +126,13 @@ impl Patch {
 
     /// Replace a logical line addressed by 1-based physical line number.
     pub fn replace_line(&mut self, lineno: usize, commands: Vec<Command>) -> &mut Self {
-        self.edit(Anchor::Line { lineno, expect: None }, Edit::Replace(commands))
+        self.edit(
+            Anchor::Line {
+                lineno,
+                expect: None,
+            },
+            Edit::Replace(commands),
+        )
     }
 
     /// Replace a logical line and verify its raw text first.
@@ -136,42 +142,90 @@ impl Patch {
         expect: Expected,
         commands: Vec<Command>,
     ) -> &mut Self {
-        self.edit(Anchor::Line { lineno, expect: Some(expect) }, Edit::Replace(commands))
+        self.edit(
+            Anchor::Line {
+                lineno,
+                expect: Some(expect),
+            },
+            Edit::Replace(commands),
+        )
     }
 
     /// Insert a command block before a logical line.
     pub fn insert_before_line(&mut self, lineno: usize, commands: Vec<Command>) -> &mut Self {
-        self.edit(Anchor::Line { lineno, expect: None }, Edit::InsertBefore(commands))
+        self.edit(
+            Anchor::Line {
+                lineno,
+                expect: None,
+            },
+            Edit::InsertBefore(commands),
+        )
     }
 
     /// Insert a command block after a logical line.
     pub fn insert_after_line(&mut self, lineno: usize, commands: Vec<Command>) -> &mut Self {
-        self.edit(Anchor::Line { lineno, expect: None }, Edit::InsertAfter(commands))
+        self.edit(
+            Anchor::Line {
+                lineno,
+                expect: None,
+            },
+            Edit::InsertAfter(commands),
+        )
     }
 
     /// Delete a logical line.
     pub fn delete_line(&mut self, lineno: usize) -> &mut Self {
-        self.edit(Anchor::Line { lineno, expect: None }, Edit::Delete)
+        self.edit(
+            Anchor::Line {
+                lineno,
+                expect: None,
+            },
+            Edit::Delete,
+        )
     }
 
     /// Replace the logical line that produced command `index`.
     pub fn replace_command(&mut self, index: usize, commands: Vec<Command>) -> &mut Self {
-        self.edit(Anchor::Command { index, expect: None }, Edit::Replace(commands))
+        self.edit(
+            Anchor::Command {
+                index,
+                expect: None,
+            },
+            Edit::Replace(commands),
+        )
     }
 
     /// Insert a command block before the logical line that produced command `index`.
     pub fn insert_before_command(&mut self, index: usize, commands: Vec<Command>) -> &mut Self {
-        self.edit(Anchor::Command { index, expect: None }, Edit::InsertBefore(commands))
+        self.edit(
+            Anchor::Command {
+                index,
+                expect: None,
+            },
+            Edit::InsertBefore(commands),
+        )
     }
 
     /// Insert a command block after the logical line that produced command `index`.
     pub fn insert_after_command(&mut self, index: usize, commands: Vec<Command>) -> &mut Self {
-        self.edit(Anchor::Command { index, expect: None }, Edit::InsertAfter(commands))
+        self.edit(
+            Anchor::Command {
+                index,
+                expect: None,
+            },
+            Edit::InsertAfter(commands),
+        )
     }
 
     /// Delete the logical line that produced command `index`.
     pub fn delete_command(&mut self, index: usize) -> &mut Self {
-        self.edit(Anchor::Command { index, expect: None }, Edit::Delete)
+        self.edit(
+            Anchor::Command {
+                index,
+                expect: None,
+            },
+            Edit::Delete,
+        )
     }
 }
 
@@ -348,43 +402,74 @@ impl fmt::Display for PatchError {
             PatchError::Io(error) => {
                 write!(f, "failed to write patched document: {error}")
             }
-            PatchError::LineOutOfRange { lineno, total_lines } => {
-                write!(f, "line {lineno} is out of range (source has {total_lines} lines)")
+            PatchError::LineOutOfRange {
+                lineno,
+                total_lines,
+            } => {
+                write!(
+                    f,
+                    "line {lineno} is out of range (source has {total_lines} lines)"
+                )
             }
-            PatchError::CommandIndexOutOfRange { index, total_commands } => {
+            PatchError::CommandIndexOutOfRange {
+                index,
+                total_commands,
+            } => {
                 write!(
                     f,
                     "command index {index} is out of range (source has {total_commands} commands)"
                 )
             }
-            PatchError::TargetInsideContinuation { lineno, start_lineno } => {
+            PatchError::TargetInsideContinuation {
+                lineno,
+                start_lineno,
+            } => {
                 write!(
                     f,
                     "line {lineno} is inside the logical line starting at line {start_lineno}; target the first line instead"
                 )
             }
             PatchError::SourceParse(error) => {
-                write!(f, "failed to parse source while resolving patch anchors: {error}")
+                write!(
+                    f,
+                    "failed to parse source while resolving patch anchors: {error}"
+                )
             }
-            PatchError::AnchorMismatch { lineno, expected, actual } => {
+            PatchError::AnchorMismatch {
+                lineno,
+                expected,
+                actual,
+            } => {
                 write!(
                     f,
                     "line {lineno} does not match the expected anchor ({expected:?}, actual {actual:?})"
                 )
             }
-            PatchError::CommandMismatch { index, lineno, expected, actual } => {
+            PatchError::CommandMismatch {
+                index,
+                lineno,
+                expected,
+                actual,
+            } => {
                 write!(
                     f,
                     "command #{index} at line {lineno} does not match the expected command ({expected:?}, actual {actual:?})"
                 )
             }
-            PatchError::ConflictingEdits { lineno, first_edit, second_edit } => {
+            PatchError::ConflictingEdits {
+                lineno,
+                first_edit,
+                second_edit,
+            } => {
                 write!(
                     f,
                     "edits {first_edit} and {second_edit} both replace or delete logical line {lineno}"
                 )
             }
-            PatchError::EmptyContent { edit_index, operation } => {
+            PatchError::EmptyContent {
+                edit_index,
+                operation,
+            } => {
                 write!(
                     f,
                     "{operation} edit {edit_index} has no commands; use Edit::Delete to delete a line"
@@ -489,7 +574,13 @@ impl<'a> SourceLines<'a> {
         let detected_newline = lines
             .iter()
             .find(|line| !line.terminator.is_empty())
-            .map(|line| if line.terminator == "\r\n" { "\r\n" } else { "\n" })
+            .map(|line| {
+                if line.terminator == "\r\n" {
+                    "\r\n"
+                } else {
+                    "\n"
+                }
+            })
             .unwrap_or("\n");
 
         let ends_with_terminator = lines
@@ -573,9 +664,10 @@ impl<'a> SourceLines<'a> {
     }
 }
 
-/// Render one command as patch line content: no leading indentation, no trailing
-/// newline. Line-breaking formatter options are disabled so one command always
-/// becomes one logical line.
+/// Render one command as patch line content: no leading indentation and no command
+/// terminator; `@text`/`@annotation` bodies may still contain escaped newlines (`\`
+/// followed by a newline). Line-breaking formatter options are disabled so one command
+/// always becomes one logical line.
 pub(crate) fn render_command(config: &WriterConfig, command: &Command) -> io::Result<String> {
     let mut options = Generators::get_effective_options(&command.name, None, config);
     options.newline_before = false;
@@ -586,7 +678,10 @@ pub(crate) fn render_command(config: &WriterConfig, command: &Command) -> io::Re
     let mut buffer = Vec::new();
     Generators::write_command_with_param_options(&mut buffer, command, config, &options, None, 0)?;
     String::from_utf8(buffer).map_err(|_| {
-        io::Error::new(io::ErrorKind::InvalidData, "writer produced non-UTF-8 output")
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "writer produced non-UTF-8 output",
+        )
     })
 }
 
@@ -670,9 +765,7 @@ fn check_line_expectation(
                 Some(actual) if actual == *expected_command => Ok(()),
                 _ => Err(ExpectationError::Mismatch {
                     expected: Expected::Command(expected_command.clone()),
-                    actual: source
-                        .group_raw_without_final_terminator(group)
-                        .to_string(),
+                    actual: source.group_raw_without_final_terminator(group).to_string(),
                 }),
             }
         }
@@ -686,7 +779,11 @@ fn empty_content_operation(edit: &Edit) -> Option<&'static str> {
         Edit::InsertAfter(commands) => (commands, "InsertAfter"),
         Edit::Delete => return None,
     };
-    if commands.is_empty() { Some(operation) } else { None }
+    if commands.is_empty() {
+        Some(operation)
+    } else {
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -719,9 +816,13 @@ fn validate(source: &SourceLines<'_>, patch: &Patch) -> Result<EmissionPlan, Pat
     for (edit_index, patch_edit) in patch.edits.iter().enumerate() {
         if let Some(operation) = empty_content_operation(&patch_edit.edit) {
             if mode == ApplyMode::Strict {
-                return Err(PatchError::EmptyContent { edit_index, operation });
+                return Err(PatchError::EmptyContent {
+                    edit_index,
+                    operation,
+                });
             }
-            plan.warnings.push(PatchWarning::EmptyContent { edit_index });
+            plan.warnings
+                .push(PatchWarning::EmptyContent { edit_index });
         }
     }
 
@@ -745,7 +846,10 @@ fn validate(source: &SourceLines<'_>, patch: &Patch) -> Result<EmissionPlan, Pat
                 let total_lines = source.lines.len();
                 if *lineno == 0 || *lineno > total_lines {
                     if mode == ApplyMode::Strict {
-                        return Err(PatchError::LineOutOfRange { lineno: *lineno, total_lines });
+                        return Err(PatchError::LineOutOfRange {
+                            lineno: *lineno,
+                            total_lines,
+                        });
                     }
                     plan.warnings.push(PatchWarning::OutOfRange { edit_index });
                     continue;
@@ -761,7 +865,8 @@ fn validate(source: &SourceLines<'_>, patch: &Patch) -> Result<EmissionPlan, Pat
                             start_lineno: group_start_lineno,
                         });
                     }
-                    plan.warnings.push(PatchWarning::InsideContinuation { edit_index });
+                    plan.warnings
+                        .push(PatchWarning::InsideContinuation { edit_index });
                     continue;
                 }
 
@@ -782,14 +887,16 @@ fn validate(source: &SourceLines<'_>, patch: &Patch) -> Result<EmissionPlan, Pat
                                     actual,
                                 });
                             }
-                            plan.warnings.push(PatchWarning::AnchorMismatch { edit_index });
+                            plan.warnings
+                                .push(PatchWarning::AnchorMismatch { edit_index });
                             continue;
                         }
                         Err(ExpectationError::Parse(error)) => {
                             if mode == ApplyMode::Strict {
                                 return Err(PatchError::SourceParse(error));
                             }
-                            plan.warnings.push(PatchWarning::AnchorMismatch { edit_index });
+                            plan.warnings
+                                .push(PatchWarning::AnchorMismatch { edit_index });
                             continue;
                         }
                     }
@@ -824,7 +931,8 @@ fn validate(source: &SourceLines<'_>, patch: &Patch) -> Result<EmissionPlan, Pat
                             actual: parsed.command.clone(),
                         });
                     }
-                    plan.warnings.push(PatchWarning::AnchorMismatch { edit_index });
+                    plan.warnings
+                        .push(PatchWarning::AnchorMismatch { edit_index });
                     continue;
                 }
 
@@ -907,8 +1015,8 @@ fn edit_indent(
         IndentPolicy::None => String::new(),
         IndentPolicy::Fixed(prefix) => prefix.clone(),
         IndentPolicy::InheritAnchor => {
-            let group = plan.resolved[edit_index]
-                .expect("planned edits always have a resolved target");
+            let group =
+                plan.resolved[edit_index].expect("planned edits always have a resolved target");
             source.group_first_line_indent(group).to_string()
         }
     }
@@ -1010,6 +1118,16 @@ impl<T: Write> Writer<T> {
     /// The writer's [`WriterConfig`] is used to render new commands, so number/quote/
     /// indentation formatting matches [`Writer::write_command`]. The writer's
     /// indent/newline state is not consulted; the call emits a complete document.
+    ///
+    /// [`Anchor::Command`] resolution and [`Expected::Command`] parsing use
+    /// [`PatchOptions::parser_config`], which must match the configuration the source
+    /// was read with. Rendering uses this writer's [`WriterConfig`] (including
+    /// `command_threshold`), so the parser configuration and the writer configuration
+    /// must describe the same document dialect; otherwise command anchors may not line
+    /// up, or emitted `#` prefixes may disagree with the parser.
+    ///
+    /// After a successful call the writer's newline bookkeeping is updated to reflect
+    /// whether the emitted document ends with a line terminator.
     ///
     /// In [`ApplyMode::Strict`] (the default), every target, expectation and conflict
     /// is validated before the first byte is written. I/O errors during emission can
@@ -1115,6 +1233,7 @@ impl<T: Write> Writer<T> {
                 report.lines_after += 1 + body.matches('\n').count();
             }
 
+            debug_assert_eq!(emitter.emitted, total);
             ended_with_terminator = emitter.ends_with_terminator;
         }
 
@@ -1124,6 +1243,13 @@ impl<T: Write> Writer<T> {
 }
 
 /// Apply a patch to a source document using the default [`WriterConfig`].
+///
+/// `source` must be decoded text. For CRLF documents whose patch renders
+/// `@text`/`@annotation` content containing newlines, the emitter escapes each newline
+/// as `\` followed by the detected EOL (for example `\r\n`). Reparse such output through
+/// [`FileInputSource`](crate::parser::FileInputSource) or
+/// [`BufReadWrapper`](crate::parser::BufReadWrapper), which normalize CRLF, rather than
+/// through [`StringInputSource`](crate::parser::StringInputSource).
 ///
 /// # Examples
 ///
@@ -1144,6 +1270,9 @@ pub fn apply_patch(source: &str, patch: &Patch) -> Result<String, PatchError> {
 ///
 /// The returned `String` is fully materialized; on error nothing is returned.
 /// Use [`Writer::write_patched`] for streaming output.
+///
+/// See [`apply_patch`] for the source-text and CRLF reparse requirements; they apply
+/// equally here.
 ///
 /// # Examples
 ///
@@ -1224,7 +1353,10 @@ mod tests {
 
         assert!(matches!(
             &patch.edits()[0].anchor,
-            Anchor::Command { index: 3, expect: None }
+            Anchor::Command {
+                index: 3,
+                expect: None
+            }
         ));
     }
 
@@ -1239,10 +1371,16 @@ mod tests {
 
     #[test]
     fn patch_error_display_is_descriptive() {
-        let error = PatchError::LineOutOfRange { lineno: 9, total_lines: 3 };
+        let error = PatchError::LineOutOfRange {
+            lineno: 9,
+            total_lines: 3,
+        };
         assert!(error.to_string().contains("line 9"));
 
-        let error = PatchError::EmptyContent { edit_index: 0, operation: "Replace" };
+        let error = PatchError::EmptyContent {
+            edit_index: 0,
+            operation: "Replace",
+        };
         assert!(error.to_string().contains("Replace"));
     }
 
@@ -1410,7 +1548,10 @@ mod tests {
         let error = validate(&source, &patch).unwrap_err();
         assert!(matches!(
             error,
-            PatchError::LineOutOfRange { lineno: 2, total_lines: 1 }
+            PatchError::LineOutOfRange {
+                lineno: 2,
+                total_lines: 1
+            }
         ));
     }
 
@@ -1423,7 +1564,10 @@ mod tests {
         let error = validate(&source, &patch).unwrap_err();
         assert!(matches!(
             error,
-            PatchError::TargetInsideContinuation { lineno: 2, start_lineno: 1 }
+            PatchError::TargetInsideContinuation {
+                lineno: 2,
+                start_lineno: 1
+            }
         ));
     }
 
@@ -1450,7 +1594,10 @@ mod tests {
             Edit::Delete,
         );
         let error = validate(&source, &bad).unwrap_err();
-        assert!(matches!(error, PatchError::AnchorMismatch { lineno: 1, .. }));
+        assert!(matches!(
+            error,
+            PatchError::AnchorMismatch { lineno: 1, .. }
+        ));
     }
 
     #[test]
@@ -1486,12 +1633,18 @@ mod tests {
         bad.edit(
             Anchor::Line {
                 lineno: 1,
-                expect: Some(Expected::Command(Command::new("cmd", vec![Parameter::from("b")]))),
+                expect: Some(Expected::Command(Command::new(
+                    "cmd",
+                    vec![Parameter::from("b")],
+                ))),
             },
             Edit::Delete,
         );
         let error = validate(&source, &bad).unwrap_err();
-        assert!(matches!(error, PatchError::AnchorMismatch { lineno: 1, .. }));
+        assert!(matches!(
+            error,
+            PatchError::AnchorMismatch { lineno: 1, .. }
+        ));
     }
 
     #[test]
@@ -1541,7 +1694,10 @@ mod tests {
         let error = validate(&source, &patch).unwrap_err();
         assert!(matches!(
             error,
-            PatchError::EmptyContent { edit_index: 0, operation: "Replace" }
+            PatchError::EmptyContent {
+                edit_index: 0,
+                operation: "Replace"
+            }
         ));
     }
 
@@ -1554,7 +1710,10 @@ mod tests {
         let error = validate(&source, &patch).unwrap_err();
         assert!(matches!(
             error,
-            PatchError::CommandIndexOutOfRange { index: 5, total_commands: 1 }
+            PatchError::CommandIndexOutOfRange {
+                index: 5,
+                total_commands: 1
+            }
         ));
     }
 
@@ -1577,7 +1736,10 @@ mod tests {
         let error = validate(&source, &patch).unwrap_err();
         assert!(matches!(
             error,
-            PatchError::CommandIndexOutOfRange { index: 1, total_commands: 1 }
+            PatchError::CommandIndexOutOfRange {
+                index: 1,
+                total_commands: 1
+            }
         ));
     }
 
@@ -1594,7 +1756,10 @@ mod tests {
         );
 
         let error = validate(&source, &patch).unwrap_err();
-        assert!(matches!(error, PatchError::CommandMismatch { index: 0, .. }));
+        assert!(matches!(
+            error,
+            PatchError::CommandMismatch { index: 0, .. }
+        ));
     }
 
     #[test]
@@ -1627,7 +1792,10 @@ mod tests {
         let error = validate(&source, &patch).unwrap_err();
         assert!(matches!(
             error,
-            PatchError::EmptyContent { edit_index: 0, operation: "Replace" }
+            PatchError::EmptyContent {
+                edit_index: 0,
+                operation: "Replace"
+            }
         ));
     }
 
@@ -1639,7 +1807,10 @@ mod tests {
         patch.replace_line(9, vec![cmd("b")]);
 
         let plan = validate(&source, &patch).unwrap();
-        assert_eq!(plan.warnings, vec![PatchWarning::OutOfRange { edit_index: 0 }]);
+        assert_eq!(
+            plan.warnings,
+            vec![PatchWarning::OutOfRange { edit_index: 0 }]
+        );
         assert_eq!(plan.resolved, vec![None]);
     }
 
@@ -1661,7 +1832,11 @@ mod tests {
         let error = validate(&source, &patch).unwrap_err();
         assert!(matches!(
             error,
-            PatchError::ConflictingEdits { lineno: 1, first_edit: 0, second_edit: 1 }
+            PatchError::ConflictingEdits {
+                lineno: 1,
+                first_edit: 0,
+                second_edit: 1
+            }
         ));
     }
 
@@ -1716,7 +1891,10 @@ mod tests {
         assert_eq!(plan.resolved, vec![Some(0), None]);
         assert_eq!(
             plan.warnings,
-            vec![PatchWarning::Conflict { edit_index: 1, owner_edit_index: 0 }]
+            vec![PatchWarning::Conflict {
+                edit_index: 1,
+                owner_edit_index: 0
+            }]
         );
     }
 
@@ -1730,7 +1908,11 @@ mod tests {
         let error = validate(&source, &patch).unwrap_err();
         assert!(matches!(
             error,
-            PatchError::ConflictingEdits { lineno: 1, first_edit: 0, second_edit: 1 }
+            PatchError::ConflictingEdits {
+                lineno: 1,
+                first_edit: 0,
+                second_edit: 1
+            }
         ));
     }
 
@@ -1752,7 +1934,10 @@ mod tests {
         let mut patch = Patch::new();
         patch.insert_before_line(1, vec![cmd("before")]);
         patch.insert_after_line(1, vec![cmd("after")]);
-        assert_eq!(apply_patch(source, &patch).unwrap(), "#before\n#a\n#after\n");
+        assert_eq!(
+            apply_patch(source, &patch).unwrap(),
+            "#before\n#a\n#after\n"
+        );
     }
 
     #[test]
@@ -1812,7 +1997,10 @@ mod tests {
         let source = "    #a\nTail\n";
         let mut patch = Patch::new();
         patch.insert_after_line(1, vec![cmd("b")]);
-        assert_eq!(apply_patch(source, &patch).unwrap(), "    #a\n    #b\nTail\n");
+        assert_eq!(
+            apply_patch(source, &patch).unwrap(),
+            "    #a\n    #b\nTail\n"
+        );
     }
 
     #[test]
@@ -1915,7 +2103,10 @@ mod tests {
             let result = writer.write_patched("#a\n", &patch);
             assert!(matches!(
                 result,
-                Err(PatchError::LineOutOfRange { lineno: 2, total_lines: 1 })
+                Err(PatchError::LineOutOfRange {
+                    lineno: 2,
+                    total_lines: 1
+                })
             ));
         }
         assert!(buffer.is_empty());
@@ -1956,7 +2147,10 @@ mod tests {
                 Command::new_annotation("note"),
             ],
         );
-        assert_eq!(apply_patch(source, &patch).unwrap(), "#cmd 1\nhi\n## note\n");
+        assert_eq!(
+            apply_patch(source, &patch).unwrap(),
+            "#cmd 1\nhi\n## note\n"
+        );
     }
 
     #[test]
@@ -1970,6 +2164,38 @@ mod tests {
         let mut parser = Parser::new(StringInputSource::new(&output), ParserConfig::default());
         let (command, _) = parser.next_command_with_source().unwrap().unwrap();
         assert_eq!(command, Command::new_text("Hello\nWorld"));
+    }
+
+    #[test]
+    fn untouched_unterminated_continuation_group_keeps_report_invariant() {
+        let source = "#a\nHello\\\nworld";
+        let output = apply_patch(source, &Patch::new()).unwrap();
+        assert_eq!(output, source);
+
+        let mut buffer = Vec::new();
+        let report = {
+            let mut writer = Writer::new(&mut buffer, WriterConfig::default());
+            writer.write_patched(source, &Patch::new()).unwrap()
+        };
+        assert_eq!(String::from_utf8(buffer).unwrap(), source);
+        assert_eq!(report.lines_before, 3);
+        assert_eq!(report.lines_after, 3);
+    }
+
+    #[test]
+    fn appended_raw_text_with_newline_at_unterminated_eof_keeps_report_invariant() {
+        let source = "#a";
+        let mut patch = Patch::new();
+        patch.append(vec![Command::new_text("x\ny")]);
+
+        let mut buffer = Vec::new();
+        let report = {
+            let mut writer = Writer::new(&mut buffer, WriterConfig::default());
+            writer.write_patched(source, &patch).unwrap()
+        };
+        assert_eq!(String::from_utf8(buffer).unwrap(), "#a\nx\\\ny");
+        assert_eq!(report.lines_before, 1);
+        assert_eq!(report.lines_after, 3);
     }
 
     #[test]

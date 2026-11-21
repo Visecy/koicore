@@ -1,4 +1,4 @@
-use koicore::parser::{Parser, ParserConfig, StringInputSource};
+use koicore::parser::{BufReadWrapper, Parser, ParserConfig, StringInputSource};
 use koicore::writer::{
     Anchor, ApplyMode, Expected, Patch, PatchError, PatchWarning, apply_patch,
     apply_patch_with_config,
@@ -175,6 +175,24 @@ fn write_patched_matches_apply_patch_with_config() {
         writer.write_patched(source, &patch).unwrap();
     }
     assert_eq!(String::from_utf8(buffer).unwrap(), expected);
+}
+
+#[test]
+fn crlf_raw_text_newlines_reparse_with_bufread_wrapper() {
+    use std::io::Cursor;
+
+    let source = "#a\r\n";
+    let mut patch = Patch::new();
+    patch.replace_line(1, vec![Command::new_text("Hello\nWorld")]);
+    let output = apply_patch(source, &patch).unwrap();
+    assert_eq!(output, "Hello\\\r\nWorld\r\n");
+
+    let mut parser = Parser::new(
+        BufReadWrapper(Cursor::new(output.clone().into_bytes())),
+        ParserConfig::default(),
+    );
+    let (command, _) = parser.next_command_with_source().unwrap().unwrap();
+    assert_eq!(command, Command::new_text("Hello\nWorld"));
 }
 
 #[test]
