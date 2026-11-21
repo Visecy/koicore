@@ -405,6 +405,170 @@ impl From<io::Error> for PatchError {
         PatchError::Io(error)
     }
 }
+
+fn leading_whitespace(text: &str) -> &str {
+    let end = text
+        .char_indices()
+        .find(|&(_, c)| c != ' ' && c != '\t')
+        .map(|(index, _)| index)
+        .unwrap_or(text.len());
+    &text[..end]
+}
+
+#[derive(Debug)]
+struct PhysicalLine<'a> {
+    text: &'a str,
+    terminator: &'a str,
+    lineno: usize,
+    start: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LogicalLine {
+    start_line: usize,
+    end_line: usize,
+    start_lineno: usize,
+}
+
+#[derive(Debug)]
+struct SourceLines<'a> {
+    rest: &'a str,
+    bom: Option<&'a str>,
+    lines: Vec<PhysicalLine<'a>>,
+    groups: Vec<LogicalLine>,
+    line_to_group: Vec<usize>,
+    detected_newline: &'static str,
+    ends_with_terminator: bool,
+}
+
+impl<'a> SourceLines<'a> {
+    fn parse(source: &'a str) -> Self {
+        let (bom, rest) = match source.strip_prefix('\u{feff}') {
+            Some(rest) => (Some("\u{feff}"), rest),
+            None => (None, source),
+        };
+
+        let mut lines = Vec::new();
+        let mut start = 0usize;
+        let mut lineno = 1usize;
+        while start < rest.len() {
+            match rest[start..].find('\n') {
+                Some(relative_end) => {
+                    let newline = start + relative_end;
+                    let (text_end, terminator_end) =
+                        if newline > start && rest.as_bytes()[newline - 1] == b'\r' {
+                            (newline - 1, newline + 1)
+                        } else {
+                            (newline, newline + 1)
+                        };
+                    lines.push(PhysicalLine {
+                        text: &rest[start..text_end],
+                        terminator: &rest[text_end..terminator_end],
+                        lineno,
+                        start,
+                    });
+                    lineno += 1;
+                    start = terminator_end;
+                }
+                None => {
+                    lines.push(PhysicalLine {
+                        text: &rest[start..],
+                        terminator: "",
+                        lineno,
+                        start,
+                    });
+                    start = rest.len();
+                }
+            }
+        }
+
+        let detected_newline = lines
+            .iter()
+            .find(|line| !line.terminator.is_empty())
+            .map(|line| if line.terminator == "\r\n" { "\r\n" } else { "\n" })
+            .unwrap_or("\n");
+
+        let ends_with_terminator = lines
+            .last()
+            .map(|line| !line.terminator.is_empty())
+            .unwrap_or(false);
+
+        let mut groups = Vec::new();
+        let mut line_to_group = vec![0usize; lines.len()];
+        let mut index = 0usize;
+        while index < lines.len() {
+            let group_index = groups.len();
+            let start_line = index;
+            loop {
+                line_to_group[index] = group_index;
+                let continues = index + 1 < lines.len()
+                    && !lines[index].terminator.is_empty()
+                    && lines[index].text.ends_with('\\');
+                index += 1;
+                if !continues {
+                    break;
+                }
+            }
+            groups.push(LogicalLine {
+                start_line,
+                end_line: index,
+                start_lineno: lines[start_line].lineno,
+            });
+        }
+
+        Self {
+            rest,
+            bom,
+            lines,
+            groups,
+            line_to_group,
+            detected_newline,
+            ends_with_terminator,
+        }
+    }
+
+    fn group_end_offset(&self, group: usize) -> usize {
+        let last = &self.lines[self.groups[group].end_line - 1];
+        last.start + last.text.len() + last.terminator.len()
+    }
+
+    fn group_raw(&self, group: usize) -> &'a str {
+        let first = &self.lines[self.groups[group].start_line];
+        &self.rest[first.start..self.group_end_offset(group)]
+    }
+
+    fn group_raw_without_final_terminator(&self, group: usize) -> &'a str {
+        let first = &self.lines[self.groups[group].start_line];
+        let last = &self.lines[self.groups[group].end_line - 1];
+        &self.rest[first.start..last.start + last.text.len()]
+    }
+
+    fn group_ends_with_terminator(&self, group: usize) -> bool {
+        !self.lines[self.groups[group].end_line - 1]
+            .terminator
+            .is_empty()
+    }
+
+    fn group_first_line_indent(&self, group: usize) -> &'a str {
+        leading_whitespace(self.lines[self.groups[group].start_line].text)
+    }
+
+    fn last_group_indent(&self) -> &'a str {
+        match self.groups.last() {
+            Some(group) => leading_whitespace(self.lines[group.start_line].text),
+            None => "",
+        }
+    }
+
+    fn resolved_newline(&self, style: NewlineStyle) -> &'static str {
+        match style {
+            NewlineStyle::Lf => "\n",
+            NewlineStyle::Crlf => "\r\n",
+            NewlineStyle::Auto => self.detected_newline,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -465,5 +629,91 @@ mod tests {
 
         let error = PatchError::EmptyContent { edit_index: 0, operation: "Replace" };
         assert!(error.to_string().contains("Replace"));
+    }
+
+    #[test]
+    fn splits_physical_lines_lf() {
+        let source = SourceLines::parse("#a 1\n#b 2");
+        assert_eq!(source.lines.len(), 2);
+        assert_eq!(source.lines[0].text, "#a 1");
+        assert_eq!(source.lines[0].terminator, "\n");
+        assert_eq!(source.lines[0].lineno, 1);
+        assert_eq!(source.lines[1].text, "#b 2");
+        assert_eq!(source.lines[1].terminator, "");
+        assert_eq!(source.detected_newline, "\n");
+        assert!(!source.ends_with_terminator);
+    }
+
+    #[test]
+    fn splits_physical_lines_crlf() {
+        let source = SourceLines::parse("#a 1\r\n#b 2\r\n");
+        assert_eq!(source.lines.len(), 2);
+        assert_eq!(source.lines[0].text, "#a 1");
+        assert_eq!(source.lines[0].terminator, "\r\n");
+        assert_eq!(source.lines[1].terminator, "\r\n");
+        assert_eq!(source.detected_newline, "\r\n");
+        assert!(source.ends_with_terminator);
+    }
+
+    #[test]
+    fn empty_source_has_no_lines_or_groups() {
+        let source = SourceLines::parse("");
+        assert!(source.lines.is_empty());
+        assert!(source.groups.is_empty());
+        assert!(!source.ends_with_terminator);
+        assert!(source.bom.is_none());
+    }
+
+    #[test]
+    fn strips_utf8_bom() {
+        let source = SourceLines::parse("\u{feff}#a\n");
+        assert_eq!(source.bom, Some("\u{feff}"));
+        assert_eq!(source.rest, "#a\n");
+        assert_eq!(source.lines[0].text, "#a");
+    }
+
+    #[test]
+    fn groups_continuation_lines() {
+        let source = SourceLines::parse("Hello\\\nworld\nnext\n");
+        assert_eq!(source.lines.len(), 3);
+        assert_eq!(source.groups.len(), 2);
+        assert_eq!(source.groups[0].start_line, 0);
+        assert_eq!(source.groups[0].end_line, 2);
+        assert_eq!(source.groups[0].start_lineno, 1);
+        assert_eq!(source.groups[1].start_line, 2);
+        assert_eq!(source.group_raw(0), "Hello\\\nworld\n");
+        assert_eq!(source.line_to_group, vec![0, 0, 1]);
+    }
+
+    #[test]
+    fn trailing_continuation_backslash_is_a_single_group() {
+        let source = SourceLines::parse("Hello\\\n");
+        assert_eq!(source.lines.len(), 1);
+        assert_eq!(source.groups.len(), 1);
+        assert_eq!(source.groups[0].end_line, 1);
+    }
+
+    #[test]
+    fn raw_group_accessors_strip_only_the_final_terminator() {
+        let source = SourceLines::parse("a\\\nb\n");
+        assert_eq!(source.group_raw(0), "a\\\nb\n");
+        assert_eq!(source.group_raw_without_final_terminator(0), "a\\\nb");
+        assert!(source.group_ends_with_terminator(0));
+    }
+
+    #[test]
+    fn indentation_helpers_read_leading_whitespace() {
+        let source = SourceLines::parse("  #a\n\t#b\n");
+        assert_eq!(source.group_first_line_indent(0), "  ");
+        assert_eq!(source.group_first_line_indent(1), "\t");
+        assert_eq!(source.last_group_indent(), "\t");
+    }
+
+    #[test]
+    fn resolves_newline_style() {
+        let source = SourceLines::parse("a\r\nb\n");
+        assert_eq!(source.resolved_newline(NewlineStyle::Auto), "\r\n");
+        assert_eq!(source.resolved_newline(NewlineStyle::Lf), "\n");
+        assert_eq!(source.resolved_newline(NewlineStyle::Crlf), "\r\n");
     }
 }
