@@ -8,7 +8,7 @@ use std::fmt;
 use std::io;
 
 use crate::command::Command;
-use crate::parser::ParserConfig;
+use crate::parser::{ParseError, Parser, ParserConfig, StringInputSource};
 
 use super::WriterConfig;
 use super::generators::Generators;
@@ -589,11 +589,260 @@ pub(crate) fn render_command(config: &WriterConfig, command: &Command) -> io::Re
     })
 }
 
+#[derive(Debug, Clone)]
+struct ParsedCommand {
+    command: Command,
+    start_lineno: usize,
+}
+
+fn parse_commands(
+    source: &str,
+    config: &ParserConfig,
+) -> Result<Vec<ParsedCommand>, Box<ParseError>> {
+    let normalized = source.replace("\r\n", "\n");
+    let mut parser = Parser::new(StringInputSource::new(&normalized), config.clone());
+    let mut commands = Vec::new();
+    while let Some((command, line_source)) = parser.next_command_with_source()? {
+        commands.push(ParsedCommand {
+            command,
+            start_lineno: line_source.lineno,
+        });
+    }
+    Ok(commands)
+}
+
+fn parse_group_command(
+    raw: &str,
+    config: &ParserConfig,
+) -> Result<Option<Command>, Box<ParseError>> {
+    let normalized = raw.replace("\r\n", "\n");
+    let mut parser = Parser::new(StringInputSource::new(&normalized), config.clone());
+    let first = parser.next_command_with_source()?;
+    Ok(first.map(|(command, _)| command))
+}
+
+impl From<Box<ParseError>> for PatchError {
+    fn from(error: Box<ParseError>) -> Self {
+        PatchError::SourceParse(error)
+    }
+}
+
+fn normalize_expected_text(expected: &str) -> &str {
+    if let Some(stripped) = expected.strip_suffix("\r\n") {
+        stripped
+    } else if let Some(stripped) = expected.strip_suffix('\n') {
+        stripped
+    } else {
+        expected
+    }
+}
+
+enum ExpectationError {
+    Mismatch { expected: Expected, actual: String },
+    Parse(Box<ParseError>),
+}
+
+fn check_line_expectation(
+    source: &SourceLines<'_>,
+    line_index: usize,
+    group: usize,
+    expected: &Expected,
+    parser_config: &ParserConfig,
+) -> Result<(), ExpectationError> {
+    match expected {
+        Expected::Text(expected_text) => {
+            let normalized = normalize_expected_text(expected_text);
+            let actual = source.lines[line_index].text;
+            if normalized == actual {
+                Ok(())
+            } else {
+                Err(ExpectationError::Mismatch {
+                    expected: Expected::Text(normalized.to_string()),
+                    actual: actual.to_string(),
+                })
+            }
+        }
+        Expected::Command(expected_command) => {
+            let parsed = parse_group_command(source.group_raw(group), parser_config)
+                .map_err(ExpectationError::Parse)?;
+            match parsed {
+                Some(actual) if actual == *expected_command => Ok(()),
+                _ => Err(ExpectationError::Mismatch {
+                    expected: Expected::Command(expected_command.clone()),
+                    actual: source
+                        .group_raw_without_final_terminator(group)
+                        .to_string(),
+                }),
+            }
+        }
+    }
+}
+
+fn empty_content_operation(edit: &Edit) -> Option<&'static str> {
+    let (commands, operation) = match edit {
+        Edit::Replace(commands) => (commands, "Replace"),
+        Edit::InsertBefore(commands) => (commands, "InsertBefore"),
+        Edit::InsertAfter(commands) => (commands, "InsertAfter"),
+        Edit::Delete => return None,
+    };
+    if commands.is_empty() { Some(operation) } else { None }
+}
+
+#[derive(Debug)]
+struct EmissionPlan {
+    resolved: Vec<Option<usize>>,
+    primary: Vec<Option<usize>>,
+    before: Vec<Vec<usize>>,
+    after: Vec<Vec<usize>>,
+    warnings: Vec<PatchWarning>,
+}
+
+impl EmissionPlan {
+    fn new(edit_count: usize, group_count: usize) -> Self {
+        Self {
+            resolved: vec![None; edit_count],
+            primary: vec![None; group_count],
+            before: vec![Vec::new(); group_count],
+            after: vec![Vec::new(); group_count],
+            warnings: Vec::new(),
+        }
+    }
+}
+
+fn validate(source: &SourceLines<'_>, patch: &Patch) -> Result<EmissionPlan, PatchError> {
+    let mode = patch.options.mode;
+    let mut plan = EmissionPlan::new(patch.edits.len(), source.groups.len());
+
+    // Payload validation runs before any source parsing so that an empty
+    // replace/insert payload wins over a source parse error.
+    for (edit_index, patch_edit) in patch.edits.iter().enumerate() {
+        if let Some(operation) = empty_content_operation(&patch_edit.edit) {
+            if mode == ApplyMode::Strict {
+                return Err(PatchError::EmptyContent { edit_index, operation });
+            }
+            plan.warnings.push(PatchWarning::EmptyContent { edit_index });
+        }
+    }
+
+    let has_command_anchor = patch
+        .edits
+        .iter()
+        .any(|edit| matches!(&edit.anchor, Anchor::Command { .. }));
+    let parsed_commands = if has_command_anchor {
+        Some(parse_commands(source.rest, &patch.options.parser_config)?)
+    } else {
+        None
+    };
+
+    for (edit_index, patch_edit) in patch.edits.iter().enumerate() {
+        if empty_content_operation(&patch_edit.edit).is_some() {
+            continue;
+        }
+
+        let group = match &patch_edit.anchor {
+            Anchor::Line { lineno, expect } => {
+                let total_lines = source.lines.len();
+                if *lineno == 0 || *lineno > total_lines {
+                    if mode == ApplyMode::Strict {
+                        return Err(PatchError::LineOutOfRange { lineno: *lineno, total_lines });
+                    }
+                    plan.warnings.push(PatchWarning::OutOfRange { edit_index });
+                    continue;
+                }
+
+                let line_index = lineno - 1;
+                let group = source.line_to_group[line_index];
+                let group_start_lineno = source.groups[group].start_lineno;
+                if source.groups[group].start_line != line_index {
+                    if mode == ApplyMode::Strict {
+                        return Err(PatchError::TargetInsideContinuation {
+                            lineno: *lineno,
+                            start_lineno: group_start_lineno,
+                        });
+                    }
+                    plan.warnings.push(PatchWarning::InsideContinuation { edit_index });
+                    continue;
+                }
+
+                if let Some(expected) = expect {
+                    match check_line_expectation(
+                        source,
+                        line_index,
+                        group,
+                        expected,
+                        &patch.options.parser_config,
+                    ) {
+                        Ok(()) => {}
+                        Err(ExpectationError::Mismatch { expected, actual }) => {
+                            if mode == ApplyMode::Strict {
+                                return Err(PatchError::AnchorMismatch {
+                                    lineno: *lineno,
+                                    expected,
+                                    actual,
+                                });
+                            }
+                            plan.warnings.push(PatchWarning::AnchorMismatch { edit_index });
+                            continue;
+                        }
+                        Err(ExpectationError::Parse(error)) => {
+                            if mode == ApplyMode::Strict {
+                                return Err(PatchError::SourceParse(error));
+                            }
+                            plan.warnings.push(PatchWarning::AnchorMismatch { edit_index });
+                            continue;
+                        }
+                    }
+                }
+
+                group
+            }
+            Anchor::Command { index, expect } => {
+                let commands = parsed_commands
+                    .as_ref()
+                    .expect("command anchors always trigger a full parse");
+                if *index >= commands.len() {
+                    if mode == ApplyMode::Strict {
+                        return Err(PatchError::CommandIndexOutOfRange {
+                            index: *index,
+                            total_commands: commands.len(),
+                        });
+                    }
+                    plan.warnings.push(PatchWarning::OutOfRange { edit_index });
+                    continue;
+                }
+
+                let parsed = &commands[*index];
+                if let Some(expected) = expect
+                    && parsed.command != *expected
+                {
+                    if mode == ApplyMode::Strict {
+                        return Err(PatchError::CommandMismatch {
+                            index: *index,
+                            lineno: parsed.start_lineno,
+                            expected: expected.clone(),
+                            actual: parsed.command.clone(),
+                        });
+                    }
+                    plan.warnings.push(PatchWarning::AnchorMismatch { edit_index });
+                    continue;
+                }
+
+                source.line_to_group[parsed.start_lineno - 1]
+            }
+        };
+
+        plan.resolved[edit_index] = Some(group);
+    }
+
+    Ok(plan)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::command::Command;
     use crate::command::Parameter;
+    use crate::parser::{Parser, StringInputSource};
     use crate::writer::{FormatterOptions, NumberFormat};
 
     fn cmd(name: &str) -> Command {
@@ -806,5 +1055,255 @@ mod tests {
         let rendered = render_command(&config, &command).unwrap();
         assert_eq!(rendered, "#split a b");
         assert!(!rendered.contains('\n'));
+    }
+
+    #[test]
+    fn line_out_of_range_is_rejected() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.replace_line(2, vec![cmd("b")]);
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(
+            error,
+            PatchError::LineOutOfRange { lineno: 2, total_lines: 1 }
+        ));
+    }
+
+    #[test]
+    fn continuation_line_target_is_rejected() {
+        let source = SourceLines::parse("Hello\\\nworld\n");
+        let mut patch = Patch::new();
+        patch.replace_line(2, vec![cmd("b")]);
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(
+            error,
+            PatchError::TargetInsideContinuation { lineno: 2, start_lineno: 1 }
+        ));
+    }
+
+    #[test]
+    fn expected_text_matches_and_mismatches() {
+        let source = SourceLines::parse("#cmd a\n");
+
+        let mut good = Patch::new();
+        good.edit(
+            Anchor::Line {
+                lineno: 1,
+                expect: Some(Expected::Text("#cmd a".to_string())),
+            },
+            Edit::Delete,
+        );
+        assert!(validate(&source, &good).is_ok());
+
+        let mut bad = Patch::new();
+        bad.edit(
+            Anchor::Line {
+                lineno: 1,
+                expect: Some(Expected::Text("#cmd b".to_string())),
+            },
+            Edit::Delete,
+        );
+        let error = validate(&source, &bad).unwrap_err();
+        assert!(matches!(error, PatchError::AnchorMismatch { lineno: 1, .. }));
+    }
+
+    #[test]
+    fn expected_text_normalizes_one_trailing_newline() {
+        let source = SourceLines::parse("#cmd a\r\n");
+        let mut patch = Patch::new();
+        patch.edit(
+            Anchor::Line {
+                lineno: 1,
+                expect: Some(Expected::Text("#cmd a\n".to_string())),
+            },
+            Edit::Delete,
+        );
+        assert!(validate(&source, &patch).is_ok());
+    }
+
+    #[test]
+    fn expected_command_matches_and_mismatches() {
+        let source = SourceLines::parse("#cmd a\n");
+        let expected = Command::new("cmd", vec![Parameter::from("a")]);
+
+        let mut good = Patch::new();
+        good.edit(
+            Anchor::Line {
+                lineno: 1,
+                expect: Some(Expected::Command(expected.clone())),
+            },
+            Edit::Delete,
+        );
+        assert!(validate(&source, &good).is_ok());
+
+        let mut bad = Patch::new();
+        bad.edit(
+            Anchor::Line {
+                lineno: 1,
+                expect: Some(Expected::Command(Command::new("cmd", vec![Parameter::from("b")]))),
+            },
+            Edit::Delete,
+        );
+        let error = validate(&source, &bad).unwrap_err();
+        assert!(matches!(error, PatchError::AnchorMismatch { lineno: 1, .. }));
+    }
+
+    #[test]
+    fn expected_command_parses_a_continuation_group() {
+        let source = SourceLines::parse("Hello\\\nworld\n");
+        let mut patch = Patch::new();
+        patch.edit(
+            Anchor::Line {
+                lineno: 1,
+                expect: Some(Expected::Command(Command::new_text("Hello\nworld"))),
+            },
+            Edit::Delete,
+        );
+        assert!(validate(&source, &patch).is_ok());
+
+        let crlf_source = SourceLines::parse("Hello\\\r\nworld\r\n");
+        assert!(validate(&crlf_source, &patch).is_ok());
+    }
+
+    #[test]
+    fn lenient_mode_skips_line_expectation_that_fails_to_parse() {
+        let source = SourceLines::parse("#cmd \"unclosed string\n");
+        let mut patch = Patch::new();
+        patch.options_mut().mode = ApplyMode::Lenient;
+        patch.edit(
+            Anchor::Line {
+                lineno: 1,
+                expect: Some(Expected::Command(Command::new("a", Vec::new()))),
+            },
+            Edit::Delete,
+        );
+
+        let plan = validate(&source, &patch).unwrap();
+        assert_eq!(
+            plan.warnings,
+            vec![PatchWarning::AnchorMismatch { edit_index: 0 }]
+        );
+        assert_eq!(plan.resolved, vec![None]);
+    }
+
+    #[test]
+    fn payload_validation_precedes_source_parsing() {
+        let source = SourceLines::parse("#cmd \"unclosed string\n");
+        let mut patch = Patch::new();
+        patch.replace_command(0, Vec::new());
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(
+            error,
+            PatchError::EmptyContent { edit_index: 0, operation: "Replace" }
+        ));
+    }
+
+    #[test]
+    fn command_index_out_of_range_is_rejected() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.delete_command(5);
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(
+            error,
+            PatchError::CommandIndexOutOfRange { index: 5, total_commands: 1 }
+        ));
+    }
+
+    #[test]
+    fn command_index_resolves_to_the_logical_line() {
+        let source = SourceLines::parse("#a\n#b\n");
+        let mut patch = Patch::new();
+        patch.delete_command(1);
+
+        let plan = validate(&source, &patch).unwrap();
+        assert_eq!(plan.resolved, vec![Some(1)]);
+    }
+
+    #[test]
+    fn command_index_does_not_count_continuation_lines_as_commands() {
+        let source = SourceLines::parse("Hello\\\r\nworld\r\n");
+        let mut patch = Patch::new();
+        patch.delete_command(1);
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(
+            error,
+            PatchError::CommandIndexOutOfRange { index: 1, total_commands: 1 }
+        ));
+    }
+
+    #[test]
+    fn command_anchor_expectation_mismatch_is_reported() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.edit(
+            Anchor::Command {
+                index: 0,
+                expect: Some(Command::new("other", Vec::new())),
+            },
+            Edit::Delete,
+        );
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(error, PatchError::CommandMismatch { index: 0, .. }));
+    }
+
+    #[test]
+    fn command_anchor_requires_parseable_source() {
+        let source = SourceLines::parse("#cmd \"unclosed string\n");
+        let mut patch = Patch::new();
+        patch.delete_command(0);
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(error, PatchError::SourceParse(_)));
+    }
+
+    #[test]
+    fn lenient_mode_source_parse_error_is_still_fatal() {
+        let source = SourceLines::parse("#cmd \"unclosed string\n");
+        let mut patch = Patch::new();
+        patch.options_mut().mode = ApplyMode::Lenient;
+        patch.delete_command(0);
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(error, PatchError::SourceParse(_)));
+    }
+
+    #[test]
+    fn empty_replace_payload_is_rejected() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.replace_line(1, Vec::new());
+
+        let error = validate(&source, &patch).unwrap_err();
+        assert!(matches!(
+            error,
+            PatchError::EmptyContent { edit_index: 0, operation: "Replace" }
+        ));
+    }
+
+    #[test]
+    fn lenient_mode_skips_out_of_range_edit_with_warning() {
+        let source = SourceLines::parse("#a\n");
+        let mut patch = Patch::new();
+        patch.options_mut().mode = ApplyMode::Lenient;
+        patch.replace_line(9, vec![cmd("b")]);
+
+        let plan = validate(&source, &patch).unwrap();
+        assert_eq!(plan.warnings, vec![PatchWarning::OutOfRange { edit_index: 0 }]);
+        assert_eq!(plan.resolved, vec![None]);
+    }
+
+    #[test]
+    fn line_anchors_do_not_require_parsing_the_source() {
+        let source = SourceLines::parse("#cmd \"unclosed string\n");
+        let mut patch = Patch::new();
+        patch.delete_line(1);
+        assert!(validate(&source, &patch).is_ok());
     }
 }
