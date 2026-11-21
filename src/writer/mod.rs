@@ -11,10 +11,16 @@ use std::io::Write;
 // Re-export configuration types
 pub use self::config::{FloatFormat, FormatterOptions, NumberFormat, ParamFormatSelector, WriterConfig};
 
+pub use self::patch::{
+    Anchor, ApplyMode, Edit, Expected, IndentPolicy, NewlineStyle, Patch, PatchEdit, PatchError,
+    PatchOptions, PatchReport, PatchWarning,
+};
+
 // Internal modules
 mod config;
 mod formatters;
 mod generators;
+mod patch;
 
 /// KoiLang writer that can write to any output implementing the `Write` trait
 pub struct Writer<T: Write> {
