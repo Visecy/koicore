@@ -13,7 +13,7 @@ pub use self::config::{FloatFormat, FormatterOptions, NumberFormat, ParamFormatS
 
 pub use self::patch::{
     Anchor, ApplyMode, Edit, Expected, IndentPolicy, NewlineStyle, Patch, PatchEdit, PatchError,
-    PatchOptions, PatchReport, PatchWarning,
+    PatchOptions, PatchReport, PatchWarning, apply_patch, apply_patch_with_config,
 };
 
 // Internal modules

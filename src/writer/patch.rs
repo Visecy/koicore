@@ -5,11 +5,12 @@
 //! lines, indentation, line endings and existing formatting survive.
 
 use std::fmt;
-use std::io;
+use std::io::{self, Write};
 
 use crate::command::Command;
 use crate::parser::{ParseError, Parser, ParserConfig, StringInputSource};
 
+use super::Writer;
 use super::WriterConfig;
 use super::generators::Generators;
 
@@ -867,6 +868,319 @@ fn validate(source: &SourceLines<'_>, patch: &Patch) -> Result<EmissionPlan, Pat
     Ok(plan)
 }
 
+fn edit_commands(edit: &Edit) -> &[Command] {
+    match edit {
+        Edit::Replace(commands) | Edit::InsertBefore(commands) | Edit::InsertAfter(commands) => {
+            commands
+        }
+        Edit::Delete => &[],
+    }
+}
+
+fn total_elements(source: &SourceLines<'_>, patch: &Patch, plan: &EmissionPlan) -> usize {
+    let mut total = patch.append.len();
+    for group in 0..source.groups.len() {
+        for &edit_index in &plan.before[group] {
+            total += edit_commands(&patch.edits[edit_index].edit).len();
+        }
+        total += match plan.primary[group] {
+            Some(edit_index) => match &patch.edits[edit_index].edit {
+                Edit::Replace(commands) => commands.len(),
+                _ => 0,
+            },
+            None => 1,
+        };
+        for &edit_index in &plan.after[group] {
+            total += edit_commands(&patch.edits[edit_index].edit).len();
+        }
+    }
+    total
+}
+
+fn edit_indent(
+    source: &SourceLines<'_>,
+    patch: &Patch,
+    plan: &EmissionPlan,
+    edit_index: usize,
+) -> String {
+    match &patch.options.indent {
+        IndentPolicy::None => String::new(),
+        IndentPolicy::Fixed(prefix) => prefix.clone(),
+        IndentPolicy::InheritAnchor => {
+            let group = plan.resolved[edit_index]
+                .expect("planned edits always have a resolved target");
+            source.group_first_line_indent(group).to_string()
+        }
+    }
+}
+
+fn append_indent(source: &SourceLines<'_>, patch: &Patch) -> String {
+    match &patch.options.indent {
+        IndentPolicy::InheritAnchor => source.last_group_indent().to_string(),
+        IndentPolicy::None => String::new(),
+        IndentPolicy::Fixed(prefix) => prefix.clone(),
+    }
+}
+
+struct Emitter<'a, W: Write> {
+    writer: &'a mut W,
+    eol: &'static str,
+    total: usize,
+    emitted: usize,
+    first: bool,
+    previous_terminated: bool,
+    source_ends_with_terminator: bool,
+    ends_with_terminator: bool,
+}
+
+impl<'a, W: Write> Emitter<'a, W> {
+    fn new(
+        writer: &'a mut W,
+        eol: &'static str,
+        total: usize,
+        source_ends_with_terminator: bool,
+    ) -> Self {
+        Self {
+            writer,
+            eol,
+            total,
+            emitted: 0,
+            first: true,
+            previous_terminated: true,
+            source_ends_with_terminator,
+            ends_with_terminator: false,
+        }
+    }
+
+    fn is_last(&self) -> bool {
+        self.emitted + 1 == self.total
+    }
+
+    fn write_separator_if_needed(&mut self) -> io::Result<()> {
+        if !self.first && !self.previous_terminated {
+            self.writer.write_all(self.eol.as_bytes())?;
+        }
+        Ok(())
+    }
+
+    fn emit_rendered(&mut self, indent: &str, body: &str) -> io::Result<()> {
+        let omit_final_terminator = self.is_last() && !self.source_ends_with_terminator;
+        self.write_separator_if_needed()?;
+        self.writer.write_all(indent.as_bytes())?;
+        let normalized = body.replace('\n', self.eol);
+        self.writer.write_all(normalized.as_bytes())?;
+        if !omit_final_terminator {
+            self.writer.write_all(self.eol.as_bytes())?;
+        }
+        let terminated = !omit_final_terminator;
+        self.first = false;
+        self.previous_terminated = terminated;
+        self.ends_with_terminator = terminated;
+        self.emitted += 1;
+        Ok(())
+    }
+
+    fn emit_raw(
+        &mut self,
+        with_terminator: &str,
+        without_terminator: &str,
+        has_terminator: bool,
+    ) -> io::Result<()> {
+        let strip_final_terminator =
+            self.is_last() && !self.source_ends_with_terminator && has_terminator;
+        self.write_separator_if_needed()?;
+        let text = if strip_final_terminator {
+            without_terminator
+        } else {
+            with_terminator
+        };
+        self.writer.write_all(text.as_bytes())?;
+        let terminated = has_terminator && !strip_final_terminator;
+        self.first = false;
+        self.previous_terminated = terminated;
+        self.ends_with_terminator = terminated;
+        self.emitted += 1;
+        Ok(())
+    }
+}
+
+impl<T: Write> Writer<T> {
+    /// Apply `patch` to `source_text` and stream the patched document to this writer.
+    ///
+    /// The writer's [`WriterConfig`] is used to render new commands, so number/quote/
+    /// indentation formatting matches [`Writer::write_command`]. The writer's
+    /// indent/newline state is not consulted; the call emits a complete document.
+    ///
+    /// In [`ApplyMode::Strict`] (the default), every target, expectation and conflict
+    /// is validated before the first byte is written. I/O errors during emission can
+    /// still leave a partial document, as with any `Write`-based API.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use koicore::Command;
+    /// use koicore::writer::{Patch, Writer};
+    /// use koicore::WriterConfig;
+    ///
+    /// let mut patch = Patch::new();
+    /// patch.replace_line(1, vec![Command::new("background", vec!["Forest".into()])]);
+    ///
+    /// let mut output = Vec::new();
+    /// {
+    ///     let mut writer = Writer::new(&mut output, WriterConfig::default());
+    ///     writer.write_patched("#background City\n", &patch).unwrap();
+    /// }
+    /// assert_eq!(String::from_utf8(output).unwrap(), "#background Forest\n");
+    /// ```
+    pub fn write_patched(
+        &mut self,
+        source_text: &str,
+        patch: &Patch,
+    ) -> Result<PatchReport, PatchError> {
+        let source = SourceLines::parse(source_text);
+        let plan = validate(&source, patch)?;
+        let eol = source.resolved_newline(patch.options.newline);
+        let total = total_elements(&source, patch, &plan);
+        let append_prefix = append_indent(&source, patch);
+
+        let mut report = PatchReport {
+            lines_before: source.lines.len(),
+            lines_after: 0,
+            replaced: 0,
+            inserted: plan.before.iter().flatten().count() + plan.after.iter().flatten().count(),
+            deleted: 0,
+            appended: patch.append.len(),
+            warnings: plan.warnings.clone(),
+        };
+
+        let ended_with_terminator;
+        {
+            let mut emitter =
+                Emitter::new(&mut self.writer, eol, total, source.ends_with_terminator);
+
+            if let Some(bom) = source.bom {
+                emitter.writer.write_all(bom.as_bytes())?;
+            }
+
+            for group in 0..source.groups.len() {
+                for &edit_index in &plan.before[group] {
+                    let indent = edit_indent(&source, patch, &plan, edit_index);
+                    for command in edit_commands(&patch.edits[edit_index].edit) {
+                        let body = render_command(&self.config, command)?;
+                        emitter.emit_rendered(&indent, &body)?;
+                        report.lines_after += 1 + body.matches('\n').count();
+                    }
+                }
+
+                match plan.primary[group] {
+                    Some(edit_index) => match &patch.edits[edit_index].edit {
+                        Edit::Replace(commands) => {
+                            let indent = edit_indent(&source, patch, &plan, edit_index);
+                            report.replaced += 1;
+                            for command in commands {
+                                let body = render_command(&self.config, command)?;
+                                emitter.emit_rendered(&indent, &body)?;
+                                report.lines_after += 1 + body.matches('\n').count();
+                            }
+                        }
+                        Edit::Delete => {
+                            report.deleted += 1;
+                        }
+                        _ => unreachable!("emission plan only stores Replace/Delete edits"),
+                    },
+                    None => {
+                        emitter.emit_raw(
+                            source.group_raw(group),
+                            source.group_raw_without_final_terminator(group),
+                            source.group_ends_with_terminator(group),
+                        )?;
+                        report.lines_after +=
+                            source.groups[group].end_line - source.groups[group].start_line;
+                    }
+                }
+
+                for &edit_index in &plan.after[group] {
+                    let indent = edit_indent(&source, patch, &plan, edit_index);
+                    for command in edit_commands(&patch.edits[edit_index].edit) {
+                        let body = render_command(&self.config, command)?;
+                        emitter.emit_rendered(&indent, &body)?;
+                        report.lines_after += 1 + body.matches('\n').count();
+                    }
+                }
+            }
+
+            for command in &patch.append {
+                let body = render_command(&self.config, command)?;
+                emitter.emit_rendered(&append_prefix, &body)?;
+                report.lines_after += 1 + body.matches('\n').count();
+            }
+
+            ended_with_terminator = emitter.ends_with_terminator;
+        }
+
+        self.last_was_newline = ended_with_terminator;
+        Ok(report)
+    }
+}
+
+/// Apply a patch to a source document using the default [`WriterConfig`].
+///
+/// # Examples
+///
+/// ```
+/// use koicore::Command;
+/// use koicore::writer::{Patch, apply_patch};
+///
+/// let mut patch = Patch::new();
+/// patch.replace_line(1, vec![Command::new("background", vec!["Forest".into()])]);
+///
+/// assert_eq!(apply_patch("#background City\n", &patch).unwrap(), "#background Forest\n");
+/// ```
+pub fn apply_patch(source: &str, patch: &Patch) -> Result<String, PatchError> {
+    apply_patch_with_config(source, patch, &WriterConfig::default())
+}
+
+/// Apply a patch to a source document with an explicit [`WriterConfig`].
+///
+/// The returned `String` is fully materialized; on error nothing is returned.
+/// Use [`Writer::write_patched`] for streaming output.
+///
+/// # Examples
+///
+/// ```
+/// use koicore::Command;
+/// use koicore::writer::{Patch, WriterConfig, apply_patch_with_config};
+///
+/// let mut patch = Patch::new();
+/// patch.replace_line(1, vec![Command::new("background", vec!["Forest".into()])]);
+///
+/// let config = WriterConfig {
+///     command_threshold: 2,
+///     ..Default::default()
+/// };
+/// assert_eq!(
+///     apply_patch_with_config("#background City\n", &patch, &config).unwrap(),
+///     "##background Forest\n"
+/// );
+/// ```
+pub fn apply_patch_with_config(
+    source: &str,
+    patch: &Patch,
+    config: &WriterConfig,
+) -> Result<String, PatchError> {
+    let mut buffer = Vec::new();
+    {
+        let mut writer = Writer::new(&mut buffer, config.clone());
+        writer.write_patched(source, patch)?;
+    }
+    String::from_utf8(buffer).map_err(|_| {
+        PatchError::Io(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "patched output is not valid UTF-8",
+        ))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1418,5 +1732,265 @@ mod tests {
             error,
             PatchError::ConflictingEdits { lineno: 1, first_edit: 0, second_edit: 1 }
         ));
+    }
+
+    fn cmd_with(name: &str, params: Vec<&str>) -> Command {
+        Command::new(name, params.into_iter().map(Parameter::from).collect())
+    }
+
+    #[test]
+    fn replaces_one_line_and_preserves_the_rest() {
+        let source = "#a\n#b\n";
+        let mut patch = Patch::new();
+        patch.replace_line(2, vec![cmd_with("c", vec!["x"])]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "#a\n#c x\n");
+    }
+
+    #[test]
+    fn inserts_before_and_after() {
+        let source = "#a\n";
+        let mut patch = Patch::new();
+        patch.insert_before_line(1, vec![cmd("before")]);
+        patch.insert_after_line(1, vec![cmd("after")]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "#before\n#a\n#after\n");
+    }
+
+    #[test]
+    fn deletes_a_line() {
+        let source = "#a\n#b\n#c\n";
+        let mut patch = Patch::new();
+        patch.delete_line(2);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "#a\n#c\n");
+    }
+
+    #[test]
+    fn appends_to_source_without_trailing_newline() {
+        let mut patch = Patch::new();
+        patch.append(vec![cmd("b")]);
+        assert_eq!(apply_patch("#a", &patch).unwrap(), "#a\n#b");
+    }
+
+    #[test]
+    fn appends_to_source_with_trailing_newline() {
+        let mut patch = Patch::new();
+        patch.append(vec![cmd("b")]);
+        assert_eq!(apply_patch("#a\n", &patch).unwrap(), "#a\n#b\n");
+    }
+
+    #[test]
+    fn replacing_the_last_line_keeps_missing_trailing_newline() {
+        let mut patch = Patch::new();
+        patch.replace_line(2, vec![cmd("c")]);
+        assert_eq!(apply_patch("#a\n#b", &patch).unwrap(), "#a\n#c");
+    }
+
+    #[test]
+    fn deleting_the_last_line_strips_the_previous_terminator() {
+        let mut patch = Patch::new();
+        patch.delete_line(2);
+        assert_eq!(apply_patch("#a\n#b", &patch).unwrap(), "#a");
+    }
+
+    #[test]
+    fn detects_crlf_for_rendered_lines() {
+        let source = "#a 1\r\n#b 2\r\n";
+        let mut patch = Patch::new();
+        patch.replace_line(2, vec![Command::new("c", vec![Parameter::from(3)])]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "#a 1\r\n#c 3\r\n");
+    }
+
+    #[test]
+    fn preserves_utf8_bom() {
+        let source = "\u{feff}#a\n";
+        let mut patch = Patch::new();
+        patch.replace_line(1, vec![cmd("b")]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "\u{feff}#b\n");
+    }
+
+    #[test]
+    fn inherits_anchor_indentation() {
+        let source = "    #a\nTail\n";
+        let mut patch = Patch::new();
+        patch.insert_after_line(1, vec![cmd("b")]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "    #a\n    #b\nTail\n");
+    }
+
+    #[test]
+    fn indent_policy_none_removes_inherited_indent() {
+        let source = "    #a\nTail\n";
+        let mut patch = Patch::new();
+        patch.options_mut().indent = IndentPolicy::None;
+        patch.insert_after_line(1, vec![cmd("b")]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "    #a\n#b\nTail\n");
+    }
+
+    #[test]
+    fn empty_patch_returns_source_unchanged() {
+        assert_eq!(
+            apply_patch("\u{feff}#a\r\n", &Patch::new()).unwrap(),
+            "\u{feff}#a\r\n"
+        );
+    }
+
+    #[test]
+    fn appends_to_empty_source() {
+        let mut patch = Patch::new();
+        patch.append(vec![cmd("b")]);
+        assert_eq!(apply_patch("", &patch).unwrap(), "#b");
+    }
+
+    #[test]
+    fn deleting_every_line_produces_empty_output() {
+        let source = "#a\n";
+        let mut patch = Patch::new();
+        patch.delete_line(1);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "");
+    }
+
+    #[test]
+    fn replaces_a_blank_line() {
+        let source = "\n#a\n";
+        let mut patch = Patch::new();
+        patch.replace_line(1, vec![cmd("x")]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "#x\n#a\n");
+    }
+
+    #[test]
+    fn append_inherits_last_line_indentation() {
+        let source = "  #a\n";
+        let mut patch = Patch::new();
+        patch.append(vec![cmd("b")]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "  #a\n  #b\n");
+    }
+
+    #[test]
+    fn fixed_indent_policy_applies_to_new_lines() {
+        let source = "#a\n";
+        let mut patch = Patch::new();
+        patch.options_mut().indent = IndentPolicy::Fixed("  ".to_string());
+        patch.insert_after_line(1, vec![cmd("b")]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "#a\n  #b\n");
+    }
+
+    #[test]
+    fn mixed_line_endings_keep_untouched_bytes() {
+        let source = "#a\r\n#b\n";
+        let mut patch = Patch::new();
+        patch.replace_line(2, vec![cmd("c")]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "#a\r\n#c\r\n");
+    }
+
+    #[test]
+    fn report_counts_applied_edits() {
+        let source = "#a\n#b\n#c\n";
+        let mut patch = Patch::new();
+        patch.replace_line(1, vec![cmd("x")]);
+        patch.insert_after_line(2, vec![cmd("y")]);
+        patch.delete_line(3);
+        patch.append(vec![cmd("z")]);
+
+        let mut buffer = Vec::new();
+        let report = {
+            let mut writer = Writer::new(&mut buffer, WriterConfig::default());
+            writer.write_patched(source, &patch).unwrap()
+        };
+
+        assert_eq!(String::from_utf8(buffer).unwrap(), "#x\n#b\n#y\n#z\n");
+        assert_eq!(report.lines_before, 3);
+        assert_eq!(report.lines_after, 4);
+        assert_eq!(report.replaced, 1);
+        assert_eq!(report.inserted, 1);
+        assert_eq!(report.deleted, 1);
+        assert_eq!(report.appended, 1);
+        assert!(report.warnings.is_empty());
+    }
+
+    #[test]
+    fn strict_failure_writes_nothing() {
+        let mut buffer = Vec::new();
+        {
+            let mut writer = Writer::new(&mut buffer, WriterConfig::default());
+            let mut patch = Patch::new();
+            patch.replace_line(2, vec![cmd("x")]);
+            let result = writer.write_patched("#a\n", &patch);
+            assert!(matches!(
+                result,
+                Err(PatchError::LineOutOfRange { lineno: 2, total_lines: 1 })
+            ));
+        }
+        assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn write_patched_matches_apply_patch() {
+        let source = "#a\n#b\n";
+        let mut patch = Patch::new();
+        patch.replace_line(2, vec![cmd_with("c", vec!["x"])]);
+        let expected = apply_patch(source, &patch).unwrap();
+
+        let mut buffer = Vec::new();
+        {
+            let mut writer = Writer::new(&mut buffer, WriterConfig::default());
+            writer.write_patched(source, &patch).unwrap();
+        }
+        assert_eq!(String::from_utf8(buffer).unwrap(), expected);
+    }
+
+    #[test]
+    fn command_anchor_replace_uses_parsed_index() {
+        let source = "#a\n#b\n#c\n";
+        let mut patch = Patch::new();
+        patch.replace_command(1, vec![cmd_with("b", vec!["changed"])]);
+        assert_eq!(apply_patch(source, &patch).unwrap(), "#a\n#b changed\n#c\n");
+    }
+
+    #[test]
+    fn replace_with_multiple_commands_emits_consecutive_lines() {
+        let source = "#a\n";
+        let mut patch = Patch::new();
+        patch.replace_line(
+            1,
+            vec![
+                Command::new("cmd", vec![Parameter::from(1)]),
+                Command::new_text("hi"),
+                Command::new_annotation("note"),
+            ],
+        );
+        assert_eq!(apply_patch(source, &patch).unwrap(), "#cmd 1\nhi\n## note\n");
+    }
+
+    #[test]
+    fn raw_text_with_embedded_newlines_round_trips() {
+        let source = "#a\n";
+        let mut patch = Patch::new();
+        patch.replace_line(1, vec![Command::new_text("Hello\nWorld")]);
+        let output = apply_patch(source, &patch).unwrap();
+        assert_eq!(output, "Hello\\\nWorld\n");
+
+        let mut parser = Parser::new(StringInputSource::new(&output), ParserConfig::default());
+        let (command, _) = parser.next_command_with_source().unwrap().unwrap();
+        assert_eq!(command, Command::new_text("Hello\nWorld"));
+    }
+
+    #[test]
+    fn apply_patch_with_config_uses_writer_formatting() {
+        let mut command_options = std::collections::HashMap::new();
+        command_options.insert(
+            "hex".to_string(),
+            FormatterOptions {
+                number_format: NumberFormat::Hex,
+                ..Default::default()
+            },
+        );
+        let config = WriterConfig {
+            command_options,
+            ..Default::default()
+        };
+        let mut patch = Patch::new();
+        patch.replace_line(1, vec![Command::new("hex", vec![Parameter::from(42)])]);
+        assert_eq!(
+            apply_patch_with_config("#a\n", &patch, &config).unwrap(),
+            "#hex 0x2a\n"
+        );
     }
 }
