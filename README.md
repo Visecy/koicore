@@ -21,6 +21,7 @@ KoiLang adopts a design where files contain commands and text content, while you
 ## Features
 
 - **Streaming Parser**: Process files of any size with constant memory usage
+- **Document Patching**: Apply format-preserving line edits to existing KoiLang files while untouched lines stay byte-identical
 - **Multiple Input Sources**: Parse from strings, files, or custom input sources
 - **Encoding Support**: Handle various text encodings (UTF-8, GBK, etc.) through `DecodeBufReader`
 - **Comprehensive Error Handling**: Detailed error messages with source locations and context
