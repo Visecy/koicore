@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="koicore logo">
+  <defs>
+    <!-- Deep ink-navy squircle background -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#151E32"/>
+      <stop offset="55%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#080D18"/>
+    </linearGradient>
+
+    <!-- Warm radial ambient glow behind the central core -->
+    <radialGradient id="core-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF6B35" stop-opacity="0.30"/>
+      <stop offset="52%" stop-color="#F97316" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Koi 1: Vermilion-Coral (Kohaku Red + Rust Energy) -->
+    <linearGradient id="koi-vermilion" x1="80%" y1="15%" x2="15%" y2="70%">
+      <stop offset="0%" stop-color="#FF8F52"/>
+      <stop offset="48%" stop-color="#F04E23"/>
+      <stop offset="100%" stop-color="#C81E3A"/>
+    </linearGradient>
+
+    <linearGradient id="koi-vermilion-fin" x1="80%" y1="10%" x2="20%" y2="90%">
+      <stop offset="0%" stop-color="#FDBA74" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#EA580C" stop-opacity="0.62"/>
+    </linearGradient>
+
+    <!-- Koi 2: Pearl-Ivory (Kohaku White + Crisp Precision) -->
+    <linearGradient id="koi-pearl" x1="20%" y1="85%" x2="85%" y2="30%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="55%" stop-color="#F1F5F9"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+
+    <linearGradient id="koi-pearl-fin" x1="20%" y1="90%" x2="80%" y2="10%">
+      <stop offset="0%" stop-color="#F8FAFC" stop-opacity="0.88"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.52"/>
+    </linearGradient>
+
+    <!-- Central Hexagonal Kernel ("Core") -->
+    <linearGradient id="core-hex-fill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0B1120"/>
+    </linearGradient>
+
+    <linearGradient id="core-hex-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDBA74"/>
+      <stop offset="45%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.75"/>
+    </linearGradient>
+
+    <!-- KoiLang Signature '#' Command Symbol -->
+    <linearGradient id="hash-grad" gradientUnits="userSpaceOnUse" x1="218" y1="222" x2="294" y2="290">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="45%" stop-color="#FDBA74"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+
+    <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#020617" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Outer Rounded Squircle Badge -->
+  <rect x="20" y="20" width="472" height="472" rx="108" ry="108" fill="url(#bg-grad)"/>
+  <rect x="21.5" y="21.5" width="469" height="469" rx="106.5" ry="106.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="3"/>
+
+  <!-- Ambient Core Glow -->
+  <circle cx="256" cy="256" r="185" fill="url(#core-glow)"/>
+
+  <!-- Subtle Pond Ripples / Streaming Orbits -->
+  <circle cx="256" cy="256" r="198" fill="none" stroke="#94A3B8" stroke-opacity="0.10" stroke-width="1.5" stroke-dasharray="12 10"/>
+  <circle cx="256" cy="256" r="139" fill="none" stroke="#94A3B8" stroke-opacity="0.08" stroke-width="1.5"/>
+
+  <!-- Koi 1: Vermilion-Orange (Top, Swimming Clockwise) -->
+  <g filter="url(#soft-shadow)">
+    <path d="M 363.73 136.35 C 370.19 135.39, 370.67 116.80, 365.33 105.52 C 359.98 94.25, 346.44 76.45, 331.67 68.71 C 316.90 60.97, 281.13 56.39, 276.70 59.08 C 272.26 61.78, 296.75 76.19, 305.06 84.90 C 313.38 93.60, 316.80 102.72, 326.58 111.29 C 336.36 119.87, 357.27 137.32, 363.73 136.35 Z" fill="url(#koi-vermilion-fin)"/>
+    <path d="M 332.95 170.54 C 333.88 174.97, 319.88 177.38, 312.43 178.33 C 304.97 179.29, 295.49 178.50, 288.22 176.26 C 280.95 174.02, 268.82 168.09, 268.80 164.90 C 268.79 161.70, 281.80 159.28, 288.14 157.09 C 294.48 154.90, 299.38 149.50, 306.85 151.74 C 314.32 153.98, 332.02 166.11, 332.95 170.54 Z" fill="url(#koi-vermilion-fin)"/>
+    <path d="M 375.51 187.00 C 378.73 184.91, 381.24 180.00, 381.87 174.26 C 382.49 168.53, 382.85 161.19, 379.24 152.59 C 375.63 143.98, 370.16 131.58, 360.20 122.63 C 350.24 113.67, 334.94 104.01, 319.49 98.87 C 304.03 93.72, 284.37 90.85, 267.49 91.75 C 250.60 92.64, 233.08 97.66, 218.16 104.23 C 203.24 110.80, 189.01 121.46, 177.99 131.15 C 166.96 140.84, 159.19 155.17, 152.01 162.37 C 144.84 169.57, 143.63 168.22, 134.96 174.36 C 126.29 180.50, 109.15 186.64, 100.01 199.22 C 90.87 211.81, 79.06 244.79, 80.11 249.86 C 81.16 254.92, 98.32 237.20, 106.31 229.61 C 114.30 222.01, 122.91 202.69, 128.05 204.30 C 133.19 205.92, 133.33 238.11, 137.17 239.30 C 141.00 240.49, 148.46 220.72, 151.06 211.46 C 153.67 202.20, 151.09 190.53, 152.79 183.73 C 154.48 176.93, 155.05 176.27, 161.23 170.67 C 167.41 165.07, 179.00 155.72, 189.86 150.15 C 200.72 144.58, 213.97 139.47, 226.39 137.22 C 238.80 134.97, 252.14 134.84, 264.35 136.64 C 276.55 138.43, 289.30 143.12, 299.63 148.01 C 309.96 152.90, 318.43 160.71, 326.34 165.97 C 334.25 171.23, 341.03 176.11, 347.07 179.58 C 353.11 183.05, 357.84 185.55, 362.58 186.79 C 367.32 188.02, 372.30 189.09, 375.51 187.00 Z" fill="url(#koi-vermilion)"/>
+    <path d="M 365.99 156.97 C 363.93 150.53, 356.01 137.43, 347.11 130.60 C 338.20 123.77, 318.67 115.50, 312.57 116.00 C 306.46 116.49, 306.80 127.06, 310.50 133.58 C 314.21 140.11, 326.65 149.19, 334.80 155.13 C 342.96 161.07, 354.22 168.92, 359.42 169.22 C 364.61 169.53, 368.04 163.41, 365.99 156.97 Z" fill="#FFF7ED" fill-opacity="0.22"/>
+    <path d="M 334.29 139.93 C 327.00 136.15, 306.91 121.17, 290.59 117.25 C 274.28 113.32, 252.94 113.55, 236.38 116.37 C 219.81 119.19, 204.37 126.74, 191.21 134.15 C 178.06 141.56, 163.08 156.39, 157.45 160.83" fill="none" stroke="#FFEDD5" stroke-opacity="0.52" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="376.17" cy="162.11" r="2.6" fill="#0F172A" fill-opacity="0.85"/>
+    <circle cx="355.68" cy="178.12" r="2.6" fill="#0F172A" fill-opacity="0.85"/>
+  </g>
+
+  <!-- Koi 2: Pearl-Ivory (Bottom, Swimming Clockwise — 180° Rotational Symmetry) -->
+  <g transform="rotate(180 256 256)" filter="url(#soft-shadow)">
+    <path d="M 363.73 136.35 C 370.19 135.39, 370.67 116.80, 365.33 105.52 C 359.98 94.25, 346.44 76.45, 331.67 68.71 C 316.90 60.97, 281.13 56.39, 276.70 59.08 C 272.26 61.78, 296.75 76.19, 305.06 84.90 C 313.38 93.60, 316.80 102.72, 326.58 111.29 C 336.36 119.87, 357.27 137.32, 363.73 136.35 Z" fill="url(#koi-pearl-fin)"/>
+    <path d="M 332.95 170.54 C 333.88 174.97, 319.88 177.38, 312.43 178.33 C 304.97 179.29, 295.49 178.50, 288.22 176.26 C 280.95 174.02, 268.82 168.09, 268.80 164.90 C 268.79 161.70, 281.80 159.28, 288.14 157.09 C 294.48 154.90, 299.38 149.50, 306.85 151.74 C 314.32 153.98, 332.02 166.11, 332.95 170.54 Z" fill="url(#koi-pearl-fin)"/>
+    <path d="M 375.51 187.00 C 378.73 184.91, 381.24 180.00, 381.87 174.26 C 382.49 168.53, 382.85 161.19, 379.24 152.59 C 375.63 143.98, 370.16 131.58, 360.20 122.63 C 350.24 113.67, 334.94 104.01, 319.49 98.87 C 304.03 93.72, 284.37 90.85, 267.49 91.75 C 250.60 92.64, 233.08 97.66, 218.16 104.23 C 203.24 110.80, 189.01 121.46, 177.99 131.15 C 166.96 140.84, 159.19 155.17, 152.01 162.37 C 144.84 169.57, 143.63 168.22, 134.96 174.36 C 126.29 180.50, 109.15 186.64, 100.01 199.22 C 90.87 211.81, 79.06 244.79, 80.11 249.86 C 81.16 254.92, 98.32 237.20, 106.31 229.61 C 114.30 222.01, 122.91 202.69, 128.05 204.30 C 133.19 205.92, 133.33 238.11, 137.17 239.30 C 141.00 240.49, 148.46 220.72, 151.06 211.46 C 153.67 202.20, 151.09 190.53, 152.79 183.73 C 154.48 176.93, 155.05 176.27, 161.23 170.67 C 167.41 165.07, 179.00 155.72, 189.86 150.15 C 200.72 144.58, 213.97 139.47, 226.39 137.22 C 238.80 134.97, 252.14 134.84, 264.35 136.64 C 276.55 138.43, 289.30 143.12, 299.63 148.01 C 309.96 152.90, 318.43 160.71, 326.34 165.97 C 334.25 171.23, 341.03 176.11, 347.07 179.58 C 353.11 183.05, 357.84 185.55, 362.58 186.79 C 367.32 188.02, 372.30 189.09, 375.51 187.00 Z" fill="url(#koi-pearl)"/>
+    <path d="M 365.99 156.97 C 363.93 150.53, 356.01 137.43, 347.11 130.60 C 338.20 123.77, 318.67 115.50, 312.57 116.00 C 306.46 116.49, 306.80 127.06, 310.50 133.58 C 314.21 140.11, 326.65 149.19, 334.80 155.13 C 342.96 161.07, 354.22 168.92, 359.42 169.22 C 364.61 169.53, 368.04 163.41, 365.99 156.97 Z" fill="#F04E23" fill-opacity="0.85"/>
+    <path d="M 334.29 139.93 C 327.00 136.15, 306.91 121.17, 290.59 117.25 C 274.28 113.32, 252.94 113.55, 236.38 116.37 C 219.81 119.19, 204.37 126.74, 191.21 134.15 C 178.06 141.56, 163.08 156.39, 157.45 160.83" fill="none" stroke="#F97316" stroke-opacity="0.45" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="376.17" cy="162.11" r="2.6" fill="#0F172A" fill-opacity="0.85"/>
+    <circle cx="355.68" cy="178.12" r="2.6" fill="#0F172A" fill-opacity="0.85"/>
+  </g>
+
+  <!-- Central Hexagonal Kernel ("Core") -->
+  <g filter="url(#soft-shadow)">
+    <path d="M 243.88 195.00 Q 256.00 188.00, 268.12 195.00 L 302.77 215.00 Q 314.89 222.00, 314.89 236.00 L 314.89 276.00 Q 314.89 290.00, 302.77 297.00 L 268.12 317.00 Q 256.00 324.00, 243.88 317.00 L 209.23 297.00 Q 197.11 290.00, 197.11 276.00 L 197.11 236.00 Q 197.11 222.00, 209.23 215.00 Z" fill="url(#core-hex-fill)" stroke="url(#core-hex-stroke)" stroke-width="3.2"/>
+    <path d="M 246.47 204.50 Q 256.00 199.00, 265.53 204.50 L 295.84 222.00 Q 305.36 227.50, 305.36 238.50 L 305.36 273.50 Q 305.36 284.50, 295.84 290.00 L 265.53 307.50 Q 256.00 313.00, 246.47 307.50 L 216.16 290.00 Q 206.64 284.50, 206.64 273.50 L 206.64 238.50 Q 206.64 227.50, 216.16 222.00 Z" fill="none" stroke="#FFFFFF" stroke-opacity="0.09" stroke-width="1.5"/>
+
+    <!-- KoiLang Signature '#' Command Symbol (pure vector geometry, slightly italic) -->
+    <g stroke="url(#hash-grad)" stroke-width="10" stroke-linecap="round">
+      <line x1="244.5" y1="225" x2="236.5" y2="287"/>
+      <line x1="275.5" y1="225" x2="267.5" y2="287"/>
+      <line x1="223.5" y1="243.5" x2="290.5" y2="243.5"/>
+      <line x1="220.5" y1="268.5" x2="287.5" y2="268.5"/>
+    </g>
+  </g>
+</svg>
