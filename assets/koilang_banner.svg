@@ -1,0 +1,235 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 320" width="1200" height="320" role="img" aria-label="KoiLang README Banner">
+  <defs>
+    <!-- Banner deep ink-navy background -->
+    <linearGradient id="banner-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#162036"/>
+      <stop offset="52%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#080D18"/>
+    </linearGradient>
+
+    <!-- Subtle clip for decorative background waves/glows -->
+    <clipPath id="banner-clip">
+      <rect x="0" y="0" width="1200" height="320" rx="28" ry="28"/>
+    </clipPath>
+
+    <!-- Warm radial ambient glow behind emblem -->
+    <radialGradient id="emblem-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF6B35" stop-opacity="0.28"/>
+      <stop offset="52%" stop-color="#F97316" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Subtle cool glow behind right code preview -->
+    <radialGradient id="right-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Koi 1: Vermilion-Coral -->
+    <linearGradient id="koi-vermilion" x1="80%" y1="15%" x2="15%" y2="70%">
+      <stop offset="0%" stop-color="#FF8F52"/>
+      <stop offset="48%" stop-color="#F04E23"/>
+      <stop offset="100%" stop-color="#C81E3A"/>
+    </linearGradient>
+
+    <linearGradient id="koi-vermilion-fin" x1="80%" y1="10%" x2="20%" y2="90%">
+      <stop offset="0%" stop-color="#FDBA74" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#EA580C" stop-opacity="0.62"/>
+    </linearGradient>
+
+    <!-- Koi 2: Pearl-Ivory -->
+    <linearGradient id="koi-pearl" x1="20%" y1="85%" x2="85%" y2="30%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="55%" stop-color="#F1F5F9"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+
+    <linearGradient id="koi-pearl-fin" x1="20%" y1="90%" x2="80%" y2="10%">
+      <stop offset="0%" stop-color="#F8FAFC" stop-opacity="0.88"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.52"/>
+    </linearGradient>
+
+    <!-- Central Hexagonal Kernel -->
+    <linearGradient id="core-hex-fill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0B1120"/>
+    </linearGradient>
+
+    <linearGradient id="core-hex-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDBA74"/>
+      <stop offset="45%" stop-color="#F97316"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.75"/>
+    </linearGradient>
+
+    <!-- Hash symbol gradient (userSpaceOnUse in local -38..38 emblem coords) -->
+    <linearGradient id="hash-grad" gradientUnits="userSpaceOnUse" x1="-38" y1="-34" x2="38" y2="34">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="45%" stop-color="#FDBA74"/>
+      <stop offset="100%" stop-color="#F97316"/>
+    </linearGradient>
+
+    <!-- Wordmark gradients -->
+    <linearGradient id="word-koi" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE4C4"/>
+      <stop offset="42%" stop-color="#FF8F52"/>
+      <stop offset="100%" stop-color="#F04E23"/>
+    </linearGradient>
+
+    <linearGradient id="word-lang" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#CBD5E1"/>
+    </linearGradient>
+
+    <!-- Code panel surface -->
+    <linearGradient id="code-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111C33" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#090F1E" stop-opacity="0.96"/>
+    </linearGradient>
+
+    <!-- Decorative flowing stream line -->
+    <linearGradient id="stream-line" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F97316" stop-opacity="0"/>
+      <stop offset="35%" stop-color="#F97316" stop-opacity="0.22"/>
+      <stop offset="70%" stop-color="#94A3B8" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#38BDF8" stop-opacity="0"/>
+    </linearGradient>
+
+    <filter id="soft-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#020617" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Main Rounded Banner Container -->
+  <g clip-path="url(#banner-clip)">
+    <rect x="0" y="0" width="1200" height="320" fill="url(#banner-bg)"/>
+
+    <!-- Ambient Glows -->
+    <circle cx="172" cy="160" r="190" fill="url(#emblem-glow)"/>
+    <circle cx="1010" cy="160" r="220" fill="url(#right-glow)"/>
+
+    <!-- Subtle Decorative Water Ripples / Streaming Curves -->
+    <path d="M -20 262 C 210 218, 420 304, 680 264 C 910 228, 1060 278, 1220 246" fill="none" stroke="url(#stream-line)" stroke-width="1.5"/>
+    <path d="M -20 282 C 230 242, 460 322, 720 284 C 940 250, 1080 296, 1220 268" fill="none" stroke="url(#stream-line)" stroke-width="1.2" opacity="0.65"/>
+
+    <!-- Subtle Technical Dot Grid on Far Right Top -->
+    <g fill="#94A3B8" fill-opacity="0.10">
+      <circle cx="860" cy="36" r="1.5"/><circle cx="884" cy="36" r="1.5"/><circle cx="908" cy="36" r="1.5"/><circle cx="932" cy="36" r="1.5"/><circle cx="956" cy="36" r="1.5"/><circle cx="980" cy="36" r="1.5"/><circle cx="1004" cy="36" r="1.5"/><circle cx="1028" cy="36" r="1.5"/><circle cx="1052" cy="36" r="1.5"/><circle cx="1076" cy="36" r="1.5"/><circle cx="1100" cy="36" r="1.5"/><circle cx="1124" cy="36" r="1.5"/><circle cx="1148" cy="36" r="1.5"/>
+      <circle cx="860" cy="56" r="1.5"/><circle cx="884" cy="56" r="1.5"/><circle cx="908" cy="56" r="1.5"/><circle cx="932" cy="56" r="1.5"/><circle cx="956" cy="56" r="1.5"/><circle cx="980" cy="56" r="1.5"/><circle cx="1004" cy="56" r="1.5"/><circle cx="1028" cy="56" r="1.5"/><circle cx="1052" cy="56" r="1.5"/><circle cx="1076" cy="56" r="1.5"/><circle cx="1100" cy="56" r="1.5"/><circle cx="1124" cy="56" r="1.5"/><circle cx="1148" cy="56" r="1.5"/>
+    </g>
+
+    <!-- LEFT: Dual-Koi & Hexagonal # Core Emblem -->
+    <g transform="translate(172 160) scale(0.58)">
+      <!-- Subtle Pond Orbits -->
+      <circle cx="0" cy="0" r="204" fill="none" stroke="#94A3B8" stroke-opacity="0.14" stroke-width="2" stroke-dasharray="14 11"/>
+      <circle cx="0" cy="0" r="139" fill="none" stroke="#94A3B8" stroke-opacity="0.10" stroke-width="2"/>
+
+      <!-- Koi 1: Vermilion-Orange -->
+      <g filter="url(#soft-shadow)">
+        <path d="M 107.73 -119.65 C 114.19 -120.61, 114.67 -139.20, 109.33 -150.48 C 103.98 -161.75, 90.44 -179.55, 75.67 -187.29 C 60.90 -195.03, 25.13 -199.61, 20.70 -196.92 C 16.26 -194.22, 40.75 -179.81, 49.06 -171.10 C 57.38 -162.40, 60.80 -153.28, 70.58 -144.71 C 80.36 -136.13, 101.27 -118.68, 107.73 -119.65 Z" fill="url(#koi-vermilion-fin)"/>
+        <path d="M 76.95 -85.46 C 77.88 -81.03, 63.88 -78.62, 56.43 -77.67 C 48.97 -76.71, 39.49 -77.50, 32.22 -79.74 C 24.95 -81.98, 12.82 -87.91, 12.80 -91.10 C 12.79 -94.30, 25.80 -96.72, 32.14 -98.91 C 38.48 -101.10, 43.38 -106.50, 50.85 -104.26 C 58.32 -102.02, 76.02 -89.89, 76.95 -85.46 Z" fill="url(#koi-vermilion-fin)"/>
+        <path d="M 119.51 -69.00 C 122.73 -71.09, 125.24 -76.00, 125.87 -81.74 C 126.49 -87.47, 126.85 -94.81, 123.24 -103.41 C 119.63 -112.02, 114.16 -124.42, 104.20 -133.37 C 94.24 -142.33, 78.94 -151.99, 63.49 -157.13 C 48.03 -162.28, 28.37 -165.15, 11.49 -164.25 C -5.40 -163.36, -22.92 -158.34, -37.84 -151.77 C -52.76 -145.20, -66.99 -134.54, -78.01 -124.85 C -89.04 -115.16, -96.81 -100.83, -103.99 -93.63 C -111.16 -86.43, -112.37 -87.78, -121.04 -81.64 C -129.71 -75.50, -146.85 -69.36, -155.99 -56.78 C -165.13 -44.19, -176.94 -11.21, -175.89 -6.14 C -174.84 -1.08, -157.68 -18.80, -149.69 -26.39 C -141.70 -33.99, -133.09 -53.31, -127.95 -51.70 C -122.81 -50.08, -122.67 -17.89, -118.83 -16.70 C -115.00 -15.51, -107.54 -35.28, -104.94 -44.54 C -102.33 -53.80, -104.91 -65.47, -103.21 -72.27 C -101.52 -79.07, -100.95 -79.73, -94.77 -85.33 C -88.59 -90.93, -77.00 -100.28, -66.14 -105.85 C -55.28 -111.42, -42.03 -116.53, -29.61 -118.78 C -17.20 -121.03, -3.86 -121.16, 8.35 -119.36 C 20.55 -117.57, 33.30 -112.88, 43.63 -107.99 C 53.96 -103.10, 62.43 -95.29, 70.34 -90.03 C 78.25 -84.77, 85.03 -79.89, 91.07 -76.42 C 97.11 -72.95, 101.84 -70.45, 106.58 -69.21 C 111.32 -67.98, 116.30 -66.91, 119.51 -69.00 Z" fill="url(#koi-vermilion)"/>
+        <path d="M 109.99 -99.03 C 107.93 -105.47, 100.01 -118.57, 91.11 -125.40 C 82.20 -132.23, 62.67 -140.50, 56.57 -140.00 C 50.46 -139.51, 50.80 -128.94, 54.50 -122.42 C 58.21 -115.89, 70.65 -106.81, 78.80 -100.87 C 86.96 -94.93, 98.22 -87.08, 103.42 -86.78 C 108.61 -86.47, 112.04 -92.59, 109.99 -99.03 Z" fill="#FFF7ED" fill-opacity="0.22"/>
+        <path d="M 78.29 -116.07 C 71.00 -119.85, 50.91 -134.83, 34.59 -138.75 C 18.28 -142.68, -3.06 -142.45, -19.62 -139.63 C -36.19 -136.81, -51.63 -129.26, -64.79 -121.85 C -77.94 -114.44, -92.92 -99.61, -98.55 -95.17" fill="none" stroke="#FFEDD5" stroke-opacity="0.52" stroke-width="4.2" stroke-linecap="round"/>
+        <circle cx="120.17" cy="-93.89" r="2.8" fill="#0F172A" fill-opacity="0.85"/>
+        <circle cx="99.68" cy="-77.88" r="2.8" fill="#0F172A" fill-opacity="0.85"/>
+      </g>
+
+      <!-- Koi 2: Pearl-Ivory -->
+      <g transform="rotate(180)" filter="url(#soft-shadow)">
+        <path d="M 107.73 -119.65 C 114.19 -120.61, 114.67 -139.20, 109.33 -150.48 C 103.98 -161.75, 90.44 -179.55, 75.67 -187.29 C 60.90 -195.03, 25.13 -199.61, 20.70 -196.92 C 16.26 -194.22, 40.75 -179.81, 49.06 -171.10 C 57.38 -162.40, 60.80 -153.28, 70.58 -144.71 C 80.36 -136.13, 101.27 -118.68, 107.73 -119.65 Z" fill="url(#koi-pearl-fin)"/>
+        <path d="M 76.95 -85.46 C 77.88 -81.03, 63.88 -78.62, 56.43 -77.67 C 48.97 -76.71, 39.49 -77.50, 32.22 -79.74 C 24.95 -81.98, 12.82 -87.91, 12.80 -91.10 C 12.79 -94.30, 25.80 -96.72, 32.14 -98.91 C 38.48 -101.10, 43.38 -106.50, 50.85 -104.26 C 58.32 -102.02, 76.02 -89.89, 76.95 -85.46 Z" fill="url(#koi-pearl-fin)"/>
+        <path d="M 119.51 -69.00 C 122.73 -71.09, 125.24 -76.00, 125.87 -81.74 C 126.49 -87.47, 126.85 -94.81, 123.24 -103.41 C 119.63 -112.02, 114.16 -124.42, 104.20 -133.37 C 94.24 -142.33, 78.94 -151.99, 63.49 -157.13 C 48.03 -162.28, 28.37 -165.15, 11.49 -164.25 C -5.40 -163.36, -22.92 -158.34, -37.84 -151.77 C -52.76 -145.20, -66.99 -134.54, -78.01 -124.85 C -89.04 -115.16, -96.81 -100.83, -103.99 -93.63 C -111.16 -86.43, -112.37 -87.78, -121.04 -81.64 C -129.71 -75.50, -146.85 -69.36, -155.99 -56.78 C -165.13 -44.19, -176.94 -11.21, -175.89 -6.14 C -174.84 -1.08, -157.68 -18.80, -149.69 -26.39 C -141.70 -33.99, -133.09 -53.31, -127.95 -51.70 C -122.81 -50.08, -122.67 -17.89, -118.83 -16.70 C -115.00 -15.51, -107.54 -35.28, -104.94 -44.54 C -102.33 -53.80, -104.91 -65.47, -103.21 -72.27 C -101.52 -79.07, -100.95 -79.73, -94.77 -85.33 C -88.59 -90.93, -77.00 -100.28, -66.14 -105.85 C -55.28 -111.42, -42.03 -116.53, -29.61 -118.78 C -17.20 -121.03, -3.86 -121.16, 8.35 -119.36 C 20.55 -117.57, 33.30 -112.88, 43.63 -107.99 C 53.96 -103.10, 62.43 -95.29, 70.34 -90.03 C 78.25 -84.77, 85.03 -79.89, 91.07 -76.42 C 97.11 -72.95, 101.84 -70.45, 106.58 -69.21 C 111.32 -67.98, 116.30 -66.91, 119.51 -69.00 Z" fill="url(#koi-pearl)"/>
+        <path d="M 109.99 -99.03 C 107.93 -105.47, 100.01 -118.57, 91.11 -125.40 C 82.20 -132.23, 62.67 -140.50, 56.57 -140.00 C 50.46 -139.51, 50.80 -128.94, 54.50 -122.42 C 58.21 -115.89, 70.65 -106.81, 78.80 -100.87 C 86.96 -94.93, 98.22 -87.08, 103.42 -86.78 C 108.61 -86.47, 112.04 -92.59, 109.99 -99.03 Z" fill="#F04E23" fill-opacity="0.85"/>
+        <path d="M 78.29 -116.07 C 71.00 -119.85, 50.91 -134.83, 34.59 -138.75 C 18.28 -142.68, -3.06 -142.45, -19.62 -139.63 C -36.19 -136.81, -51.63 -129.26, -64.79 -121.85 C -77.94 -114.44, -92.92 -99.61, -98.55 -95.17" fill="none" stroke="#F97316" stroke-opacity="0.45" stroke-width="4.2" stroke-linecap="round"/>
+        <circle cx="120.17" cy="-93.89" r="2.8" fill="#0F172A" fill-opacity="0.85"/>
+        <circle cx="99.68" cy="-77.88" r="2.8" fill="#0F172A" fill-opacity="0.85"/>
+      </g>
+
+      <!-- Central Hexagonal Kernel -->
+      <g filter="url(#soft-shadow)">
+        <path d="M -12.12 -61.00 Q 0.00 -68.00, 12.12 -61.00 L 46.77 -41.00 Q 58.89 -34.00, 58.89 -20.00 L 58.89 20.00 Q 58.89 34.00, 46.77 41.00 L 12.12 61.00 Q 0.00 68.00, -12.12 61.00 L -46.77 41.00 Q -58.89 34.00, -58.89 20.00 L -58.89 -20.00 Q -58.89 -34.00, -46.77 -41.00 Z" fill="url(#core-hex-fill)" stroke="url(#core-hex-stroke)" stroke-width="3.6"/>
+        <path d="M -9.53 -51.50 Q 0.00 -57.00, 9.53 -51.50 L 39.84 -34.00 Q 49.36 -28.50, 49.36 -17.50 L 49.36 17.50 Q 49.36 28.50, 39.84 34.00 L 9.53 51.50 Q 0.00 57.00, -9.53 51.50 L -39.84 34.00 Q -49.36 28.50, -49.36 17.50 L -49.36 -17.50 Q -49.36 -28.50, -39.84 -34.00 Z" fill="none" stroke="#FFFFFF" stroke-opacity="0.10" stroke-width="1.6"/>
+        <!-- KoiLang '#' Symbol -->
+        <g stroke="url(#hash-grad)" stroke-width="10.5" stroke-linecap="round">
+          <line x1="-11.5" y1="-31" x2="-19.5" y2="31"/>
+          <line x1="19.5" y1="-31" x2="11.5" y2="31"/>
+          <line x1="-32.5" y1="-12.5" x2="34.5" y2="-12.5"/>
+          <line x1="-35.5" y1="12.5" x2="31.5" y2="12.5"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- CENTER: KoiLang Wordmark, Tagline & Feature Pills -->
+    <g transform="translate(332, 0)">
+      <!-- Eyebrow Label -->
+      <text x="2" y="88" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="13.5" font-weight="600" letter-spacing="2.2" fill="#FDBA74" opacity="0.90">MARKUP LANGUAGE · STREAMING KERNEL</text>
+
+      <!-- Main Wordmark: KoiLang -->
+      <text x="0" y="168" font-family="'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="80" font-weight="800" letter-spacing="-1.8">
+        <tspan fill="url(#word-koi)">Koi</tspan><tspan fill="url(#word-lang)">Lang</tspan>
+      </text>
+
+      <!-- Concise Subtitle -->
+      <text x="2" y="208" font-family="'Inter', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif" font-size="18.5" font-weight="400" fill="#94A3B8">Structured commands in readable natural text</text>
+
+      <!-- Feature Pills -->
+      <g transform="translate(0, 232)" font-family="'Inter', 'Segoe UI', -apple-system, sans-serif" font-size="13" font-weight="600">
+        <!-- Pill 1 -->
+        <rect x="0" y="0" width="156" height="32" rx="16" fill="#FFFFFF" fill-opacity="0.06" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1"/>
+        <circle cx="18" cy="16" r="4" fill="#F97316"/>
+        <text x="30" y="20.5" fill="#E2E8F0">Human-Readable</text>
+
+        <!-- Pill 2 -->
+        <rect x="168" y="0" width="148" height="32" rx="16" fill="#FFFFFF" fill-opacity="0.06" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1"/>
+        <circle cx="186" cy="16" r="4" fill="#FDBA74"/>
+        <text x="198" y="20.5" fill="#E2E8F0">Zero-Copy Rust</text>
+
+        <!-- Pill 3 -->
+        <rect x="328" y="0" width="144" height="32" rx="16" fill="#FFFFFF" fill-opacity="0.06" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1"/>
+        <circle cx="346" cy="16" r="4" fill="#38BDF8"/>
+        <text x="358" y="20.5" fill="#E2E8F0">Cross-Lang FFI</text>
+      </g>
+    </g>
+
+    <!-- RIGHT: Authentic KoiLang Syntax Preview Card -->
+    <g transform="translate(848, 66)" filter="url(#soft-shadow)">
+      <rect x="0" y="0" width="308" height="188" rx="16" fill="url(#code-bg)" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="1.2"/>
+
+      <!-- Mini Window Header -->
+      <line x1="0" y1="36" x2="308" y2="36" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="1"/>
+      <circle cx="20" cy="18" r="4.5" fill="#F04E23" fill-opacity="0.85"/>
+      <circle cx="36" cy="18" r="4.5" fill="#FDBA74" fill-opacity="0.80"/>
+      <circle cx="52" cy="18" r="4.5" fill="#38BDF8" fill-opacity="0.70"/>
+      <text x="288" y="22.5" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#64748B">story.ktxt</text>
+
+      <!-- Syntax Lines -->
+      <g font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="13.2">
+        <!-- Line 1: Command -->
+        <text x="20" y="68">
+          <tspan fill="#FB923C" font-weight="600">#character</tspan>
+          <tspan fill="#7DD3FC"> Alice </tspan>
+          <tspan fill="#FDE68A">"Hello!"</tspan>
+        </text>
+
+        <!-- Line 2: Natural Text -->
+        <text x="20" y="96" fill="#E2E8F0">Regular narrative text</text>
+
+        <!-- Line 3: Natural Text cont. -->
+        <text x="20" y="120" fill="#CBD5E1">flows naturally here.</text>
+
+        <!-- Line 4: Command with composite params -->
+        <text x="20" y="148">
+          <tspan fill="#FB923C" font-weight="600">#scene</tspan>
+          <tspan fill="#7DD3FC"> Pond </tspan>
+          <tspan fill="#A7F3D0">mood</tspan><tspan fill="#94A3B8">(</tspan><tspan fill="#FDE68A">calm</tspan><tspan fill="#94A3B8">)</tspan>
+        </text>
+
+        <!-- Line 5: Annotation -->
+        <text x="20" y="172" fill="#64748B" font-style="italic">## streaming parser</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Crisp Outer Border -->
+  <rect x="0.75" y="0.75" width="1198.5" height="318.5" rx="27.25" ry="27.25" fill="none" stroke="#FFFFFF" stroke-opacity="0.11" stroke-width="1.5"/>
+</svg>

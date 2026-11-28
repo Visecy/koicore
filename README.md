@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="koicore_header.png" width="800" alt="koicore banner">
+  <img src="assets/koilang_banner.svg" width="800" alt="KoiLang banner">
 </div>
 
 # koicore
